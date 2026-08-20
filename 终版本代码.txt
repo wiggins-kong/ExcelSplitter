@@ -1,0 +1,203 @@
+function SplitByNonAdjacentSelection() {
+    try {
+        var wb = Application.ActiveWorkbook;
+        var ws = wb.ActiveSheet;
+        var sel = Application.Selection;
+        var path = wb.Path;
+
+        // 1. 基础检查
+        if (!path || path === "") {
+            alert("请先保存当前工作簿！");
+            return;
+        }
+
+        if (!sel || sel.Count === 0) {
+            alert("请先用鼠标选中用于拆分的列（可按住Ctrl选择不相邻列）！");
+            return;
+        }
+
+        // 2. 确定文件夹路径
+        var wbName = wb.Name;
+        var lastDotIndex = wbName.lastIndexOf(".");
+        var folderName = lastDotIndex > -1 ? wbName.substring(0, lastDotIndex) : wbName;
+        folderName = folderName.replace(/[\\\/:*?"<>|]/g, "-");
+        var savePath = path + "\\" + folderName + "\\";
+
+        // 3. 创建文件夹
+        var fullFolderPath = path + "\\" + folderName;
+        try {
+            MkDir(fullFolderPath);
+        } catch (e) {
+            // 文件夹已存在则忽略
+        }
+
+        // 4. 解析选区，获取列号
+        var selectedColIndices = [];
+        var areas = sel.Areas;
+        
+        for (var a = 1; a <= areas.Count; a++) {
+            var area = areas(a);
+            var startCol = area.Column;
+            var colCount = area.Columns.Count;
+            
+            for (var c = 0; c < colCount; c++) {
+                selectedColIndices.push(startCol + c);
+            }
+        }
+        
+        // 去重并排序
+        selectedColIndices = selectedColIndices.filter(function(item, pos, ary) {
+            return !pos || item != ary[pos - 1];
+        }).sort(function(a, b) { return a - b; });
+
+        if (selectedColIndices.length === 0) {
+            alert("未检测到有效列。");
+            return;
+        }
+
+        // 5. 确定数据范围
+        var usedRange = ws.UsedRange;
+        var dataLastRow = usedRange.Rows.Count + usedRange.Row - 1;
+        var dataLastCol = usedRange.Columns.Count + usedRange.Column - 1;
+        
+        var headerRow = 1;
+        var dataStartRow = 2;
+
+        if (dataLastRow < dataStartRow) {
+            alert("表格中没有足够的数据行。");
+            return;
+        }
+
+        // 6. 读取关键列数据进行分组 (重点修改了这里的清洗逻辑)
+        var keyData = [];
+        for (var r = dataStartRow; r <= dataLastRow; r++) {
+            var rowVals = [];
+            for (var c = 0; c < selectedColIndices.length; c++) {
+                var colIdx = selectedColIndices[c];
+                var val = ws.Cells(r, colIdx).Value2; // 使用 Value2 获取原始值
+                
+                // 【核心修复】强力清洗数据
+                var strVal = "";
+                
+                if (val === null || val === undefined || val === "") {
+                    strVal = "空白";
+                } else {
+                    // 1. 强制转为字符串
+                    strVal = String(val); 
+                    // 2. 去除首尾空格 (解决 "A" 和 "A " 不匹配的问题)
+                    strVal = strVal.trim(); 
+                    // 3. 去除单元格内的换行符 (解决看起来一样但实际有回车的问题)
+                    strVal = strVal.replace(/[\r\n]/g, ""); 
+                    
+                    if (strVal === "") strVal = "空白";
+                }
+                
+                rowVals.push(strVal);
+            }
+            
+            // 使用特殊分隔符连接，确保唯一性
+            keyData.push({
+                key: rowVals.join("_||_"),
+                rowIndex: r
+            });
+        }
+
+        // 分组
+        var groups = {};
+        var keys = [];
+        
+        for (var i = 0; i < keyData.length; i++) {
+            var item = keyData[i];
+            if (!groups[item.key]) {
+                groups[item.key] = [];
+                keys.push(item.key);
+            }
+            groups[item.key].push(item.rowIndex);
+        }
+
+        if (keys.length === 0) {
+            alert("没有有效数据。");
+            return;
+        }
+
+        // 7. 执行拆分
+        Application.ScreenUpdating = false;
+        Application.DisplayAlerts = false;
+
+        var createdCount = 0;
+        var errorLog = "";
+
+        for (var k = 0; k < keys.length; k++) {
+            var groupKey = keys[k];
+            var rowIndices = groups[groupKey];
+            
+            // --- 文件名生成逻辑优化 ---
+            // 1. 将分隔符替换为空格 (实现名称和规格间的空格)
+            var fileName = groupKey.replace(/_||_/g, " "); 
+            
+            // 2. 清理非法字符，但保留常用标点 (冒号、逗号、括号、小数点)
+            // 注意：这里只替换 Windows 绝对禁止的字符
+            fileName = fileName.replace(/[\\\/\*\?\"<>|]/g, "-"); 
+            
+            // 3. 处理英文冒号 (Windows不允许文件名有英文冒号，替换为中文冒号或横杠)
+            fileName = fileName.replace(/:/g, "："); 
+
+            // 4. 长度限制
+            if (fileName.length > 150) fileName = fileName.substring(0, 150);
+
+            var newWb = null;
+            try {
+                newWb = Application.Workbooks.Add();
+                var newWs = newWb.Sheets(1);
+
+                // 复制标题行
+                var hRange = ws.Range(ws.Cells(headerRow, 1), ws.Cells(headerRow, dataLastCol));
+                var hVals = hRange.Value2;
+                if (hVals) {
+                    newWs.Range(newWs.Cells(1, 1), newWs.Cells(1, hVals[0].length)).Value2 = hVals;
+                }
+
+                // 复制数据行
+                var targetRow = 2;
+                for (var r = 0; r < rowIndices.length; r++) {
+                    var srcRowIdx = rowIndices[r];
+                    var srcRange = ws.Range(ws.Cells(srcRowIdx, 1), ws.Cells(srcRowIdx, dataLastCol));
+                    var dataVals = srcRange.Value2;
+                    
+                    if (dataVals) {
+                        newWs.Range(newWs.Cells(targetRow, 1), newWs.Cells(targetRow, dataVals[0].length)).Value2 = dataVals;
+                        targetRow++;
+                    }
+                }
+                
+                newWs.Columns.AutoFit();
+
+                // 保存
+                var fullPath = savePath + fileName + ".xlsx";
+                newWb.SaveAs(fullPath);
+                createdCount++;
+                
+            } catch (e) {
+                errorLog += "\n- [" + fileName + "] : " + e.message;
+            } finally {
+                if (newWb) {
+                    try { newWb.Close(false); } catch(err){}
+                }
+            }
+        }
+
+        Application.ScreenUpdating = true;
+        Application.DisplayAlerts = true;
+
+        if (createdCount > 0) {
+            alert("拆分完成！\n生成文件数: " + createdCount + "\n位置: " + savePath);
+        } else {
+            alert("拆分失败。\n错误: " + errorLog);
+        }
+
+    } catch (e) {
+        Application.ScreenUpdating = true;
+        Application.DisplayAlerts = true;
+        alert("系统错误: " + e.message);
+    }
+}

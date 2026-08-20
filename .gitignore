@@ -1,0 +1,21 @@
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# PyInstaller 生成物
+build/
+*.spec
+
+# 本地打包虚拟环境
+.build/
+
+# 构建产物（可执行文件按需用 PyInstaller 重新生成，见 README）
+dist/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+
+# WorkBuddy 项目内部文件
+.workbuddy/
