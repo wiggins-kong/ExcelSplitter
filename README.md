@@ -73,14 +73,13 @@ git push origin v1.0.0
 ```
 excel_splitter.py   # 主程序源码（tkinter GUI + openpyxl 拆分逻辑）
 dpi_manifest.xml    # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
-终版本代码.txt       # 原始 WPS JS 宏参考（本工具的功能来源）
 .gitignore
 README.md
 ```
 
 ## 与原 WPS 宏的关系
 
-本工具还原并改进了 `终版本代码.txt` 中的 WPS JS 宏：
+本工具还原并改进了 WPS 表格的 JS 宏 `SplitByNonAdjacentSelection`：
 
 - 不再依赖 WPS / Excel 正在运行，纯读文件拆分
 - 修正了原宏的一个文件名 bug：原宏用 `_||_` 作分隔符，但在文件名替换时正则写错（`/_||_/g` 实际被解析成「_ 或 | 或 _」），会导致文件名冒出一堆空格。本工具改用**元组作分组键**、文件名用 ` - ` 连接，干净且无歧义
