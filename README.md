@@ -51,6 +51,23 @@ pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_man
 
 > 说明：本仓库**不收录** `dist/` 下的 exe 二进制（避免长期占用仓库体积）。按上面命令即可在任何机器重新生成，结果一致。
 
+## 发布新版本（GitHub Actions 自动打包）
+
+仓库已内置 `.github/workflows/build-release.yml`：推送一个 `v*` 格式的 tag 时，GitHub 会在云端 Windows 运行器上自动用 PyInstaller 打包 exe，并创建 Release、把 `ExcelSplitter.exe` 作为下载附件。
+
+```bash
+# 1. 确保所有改动已提交并推送到 GitHub
+git add -A && git commit -m "release: v1.0.0" && git push origin main
+
+# 2. 打 tag 并推送（push tag 即触发 Actions 自动构建 + 发版）
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+推送 tag 后，到仓库的 **Actions** 页看构建进度；成功后 **Releases** 页会出现 `v1.0.0`，里面带可直接下载的 `ExcelSplitter.exe`。
+
+> 改代码后发新版：本地重新 `git tag v1.0.1`（递增版本号）→ `git push origin v1.0.1` 即可，无需手动上传文件。
+
 ## 目录结构
 
 ```
