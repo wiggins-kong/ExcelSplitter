@@ -250,11 +250,11 @@ def main():
             print("  失败 %s -> %s" % (f, e))
     else:
         try:
-            from excel_splitter_gui import run_gui
+            from excel_splitter_gui_web import run_gui
             run_gui()
         except Exception as e:
             print("无法启动图形界面: " + str(e))
-            print("提示：GUI 模式需要 tkinter / sv_ttk / tkinterdnd2。")
+            print("提示：GUI 模式需要 pywebview（WebView2）。")
             print("可改用 CLI 模式：python excel_splitter.py 文件.xlsx --cols 1,3 --out 输出目录")
             sys.exit(1)
 

@@ -20,16 +20,16 @@ jobs:
       - name: 配置 Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'   # 自带 tkinter，支持 GUI 打包
+          python-version: '3.13'
 
       - name: 安装依赖
         run: |
           python -m pip install --upgrade pip
-          pip install openpyxl xlrd pyinstaller sv-ttk tkinterdnd2
+          pip install openpyxl xlrd pyinstaller pywebview
 
       - name: 用 PyInstaller 打包 exe
         run: |
-          pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --clean --hidden-import xlrd --hidden-import sv_ttk --collect-all sv_ttk --collect-all tkinterdnd2 excel_splitter.py
+          pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --clean --hidden-import xlrd --collect-all webview --add-data "webgui;webgui" excel_splitter.py
 
       - name: 重命名 exe 带上版本号
         run: |

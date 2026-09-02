@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Excel 按列拆分工具 · Win11 概念稿</title>
+<style>
+  /* ================= Design Tokens (Win11 Fluent) ================= */
+  :root {
+    --accent:        #0067c0;   /* Win11 系统强调蓝 */
+    --accent-hover:  #1975c5;
+    --accent-press:  #005ba6;
+    --accent-light:  #cfe4f7;
+
+    --text-primary:   #1a1a1a;
+    --text-secondary: #5d5d5d;
+    --text-tertiary:  #8a8a8a;
+    --text-accent:    #003e92;
+
+    --mica-base:  #e8ecf1;     /* 云母底色（含壁纸透出的冷灰蓝） */
+    --mica-tint:  rgba(243, 246, 250, .82);
+    --acrylic:    rgba(255, 255, 255, .55);   /* 毛玻璃卡片 */
+    --acrylic-strong: rgba(255, 255, 255, .72);
+    --stroke:     rgba(0, 0, 0, .0578);
+    --stroke-strong: rgba(0, 0, 0, .12);
+
+    --radius-card: 8px;
+    --radius-ctrl: 4px;       /* Win11 控件圆角 */
+    --shadow-card: 0 2px 4px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
+
+    --ok:     #0f7b0f;
+    --danger: #c42b1c;
+    --font: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font);
+    color: var(--text-primary);
+    background:
+      /* 模拟壁纸透出 Mica 质感 */
+      radial-gradient(1200px 700px at 15% -10%, #d7e3f4 0%, transparent 60%),
+      radial-gradient(900px 600px at 110% 110%, #dce8f2 0%, transparent 55%),
+      linear-gradient(160deg, #eef2f7 0%, var(--mica-base) 45%, #e3e9f0 100%);
+    display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; padding: 28px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ================= 应用窗口 ================= */
+  .window {
+    width: 1020px; max-width: 100%;
+    height: 760px; max-height: calc(100vh - 40px);
+    display: flex; flex-direction: column;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,.55);
+    box-shadow: 0 32px 64px rgba(31,45,61,.28), 0 2px 6px rgba(31,45,61,.12);
+    overflow: hidden;
+    backdrop-filter: blur(60px) saturate(1.25);   /* Mica */
+    background: var(--mica-tint);
+  }
+
+  /* ---- 标题栏 ---- */
+  .titlebar {
+    height: 40px; flex: none;
+    display: flex; align-items: center;
+    padding-left: 16px;
+    -webkit-app-region: drag;
+  }
+  .titlebar .app-icon {
+    width: 16px; height: 16px; margin-right: 10px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #1a8c54 0%, var(--accent) 100%);
+    display: grid; place-items: center;
+    color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .titlebar .title { font-size: 12px; color: var(--text-secondary); }
+  .caption-btns { margin-left: auto; display: flex; height: 100%; -webkit-app-region: no-drag; }
+  .caption-btns button {
+    width: 46px; height: 100%; border: none; background: transparent;
+    display: grid; place-items: center; cursor: default;
+    color: var(--text-primary); font-size: 10px;
+    transition: background .12s;
+  }
+  .caption-btns button:hover { background: rgba(0,0,0,.045); }
+  .caption-btns .close:hover { background: var(--danger); color: #fff; }
+
+  /* ---- 主体 ---- */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 侧边导航（Win11 NavigationView） */
+  .nav {
+    width: 220px; flex: none;
+    padding: 8px 12px 16px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .nav .step {
+    display: flex; align-items: center; gap: 12px;
+    height: 36px; padding: 0 12px;
+    border-radius: var(--radius-ctrl);
+    font-size: 13px; color: var(--text-primary);
+    cursor: default; position: relative;
+    transition: background .12s;
+  }
+  .nav .step:hover { background: rgba(0,0,0,.045); }
+  .nav .step.active { background: rgba(255,255,255,.65); box-shadow: var(--shadow-card); font-weight: 600; }
+  .nav .step.active::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px;
+    width: 3px; border-radius: 2px; background: var(--accent);
+  }
+  .nav .step .no {
+    width: 18px; height: 18px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 10px; font-weight: 700;
+    background: rgba(0,0,0,.06); color: var(--text-secondary);
+  }
+  .nav .step.active .no { background: var(--accent); color: #fff; }
+  .nav .step .state { margin-left: auto; font-size: 11px; color: var(--text-tertiary); }
+  .nav .step .state.done { color: var(--ok); }
+  .nav .spacer { flex: 1; }
+  .nav .settings {
+    display: flex; align-items: center; gap: 12px;
+    height: 36px; padding: 0 12px; border-radius: var(--radius-ctrl);
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .nav .settings:hover { background: rgba(0,0,0,.045); }
+
+  /* 内容区 */
+  .content {
+    flex: 1; min-width: 0;
+    padding: 8px 20px 16px 6px;
+    display: flex; flex-direction: column; gap: 12px;
+    overflow-y: auto;
+  }
+
+  /* ---- 毛玻璃卡片 ---- */
+  .card {
+    background: var(--acrylic);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(30px) saturate(1.4);   /* Acrylic */
+    padding: 14px 16px;
+  }
+  .card-head {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px;
+  }
+  .card-head h2 { font-size: 14px; font-weight: 600; }
+  .card-head .hint { font-size: 12px; color: var(--text-tertiary); }
+  .card-head .pill {
+    margin-left: auto; font-size: 12px; font-weight: 600;
+    color: var(--text-accent);
+    background: var(--accent-light);
+    padding: 3px 10px; border-radius: 12px;
+  }
+
+  /* ---- 控件 ---- */
+  .row { display: flex; gap: 8px; align-items: center; }
+
+  .input {
+    flex: 1; height: 32px; padding: 0 10px;
+    font-family: var(--font); font-size: 13px;
+    color: var(--text-primary);
+    background: rgba(255,255,255,.7);
+    border: 1px solid var(--stroke-strong);
+    border-bottom-color: var(--text-tertiary);
+    border-bottom-width: 1px;
+    border-radius: var(--radius-ctrl);
+    outline: none;
+    transition: border-color .12s, background .12s;
+  }
+  .input:focus {
+    background: rgba(255,255,255,.95);
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 0; /* 补偿 */
+    border-bottom-width: 2px; margin-bottom: -1px;
+  }
+
+  .btn {
+    height: 32px; padding: 0 16px;
+    font-family: var(--font); font-size: 13px;
+    border-radius: var(--radius-ctrl);
+    border: 1px solid var(--stroke-strong);
+    background: rgba(251, 251, 251, .8);
+    color: var(--text-primary); cursor: pointer;
+    transition: background .12s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,.95); }
+  .btn:active { background: rgba(0,0,0,.05); color: var(--text-secondary); }
+
+  .btn.accent {
+    background: var(--accent); border-color: transparent; color: #fff; font-weight: 600;
+  }
+  .btn.accent:hover { background: var(--accent-hover); }
+  .btn.accent:active { background: var(--accent-press); color: rgba(255,255,255,.8); }
+
+  .combo {
+    height: 32px; font-family: var(--font); font-size: 13px;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--stroke-strong);
+    border-radius: var(--radius-ctrl);
+    background:
+      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><path d="M1 1l4 4 4-4" stroke="%235d5d5d" fill="none" stroke-width="1.4"/></svg>')
+      no-repeat right 10px center, rgba(255,255,255,.7);
+    appearance: none; outline: none; color: var(--text-primary); cursor: pointer;
+  }
+  .spin {
+    height: 32px; width: 64px; text-align: center;
+    font-family: var(--font); font-size: 13px;
+    border: 1px solid var(--stroke-strong); border-radius: var(--radius-ctrl);
+    background: rgba(255,255,255,.7); outline: none; color: var(--text-primary);
+  }
+
+  /* ---- 列选择表格 ---- */
+  .grid-wrap {
+    border: 1px solid var(--stroke-strong);
+    border-radius: var(--radius-ctrl);
+    overflow: hidden; background: rgba(255,255,255,.5);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    position: sticky; top: 0;
+    text-align: left; font-weight: 600;
+    padding: 7px 12px; font-size: 12px;
+    background: rgba(243,246,250,.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--stroke-strong);
+    color: var(--text-secondary);
+  }
+  tbody td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--stroke);
+    color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  tbody tr { cursor: default; transition: background .1s; }
+  tbody tr:hover { background: rgba(255,255,255,.7); }
+  tbody tr.selected { background: var(--accent-light); }
+  tbody tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+  td.no { width: 44px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+  td.preview { color: var(--text-tertiary); }
+  .check {
+    width: 16px; height: 16px; border-radius: 3px;
+    border: 1px solid var(--text-tertiary);
+    display: inline-grid; place-items: center; vertical-align: middle;
+    background: #fff;
+  }
+  tr.selected .check { background: var(--accent); border-color: var(--accent); color: #fff; font-size: 10px; }
+
+  /* ---- 日志 ---- */
+  .log {
+    font-family: Consolas, var(--font); font-size: 12px;
+    line-height: 1.9; color: var(--text-secondary);
+    max-height: 120px; overflow-y: auto;
+  }
+  .log .t { color: var(--text-tertiary); margin-right: 10px; font-variant-numeric: tabular-nums; }
+  .log .ok { color: var(--ok); }
+  .log .err { color: var(--danger); }
+
+  /* ---- 底部操作栏 ---- */
+  .bottombar {
+    margin-top: auto;
+    display: flex; align-items: center; gap: 16px;
+    background: var(--acrylic-strong);
+    border: 1px solid var(--stroke);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(30px) saturate(1.4);
+    padding: 12px 16px;
+  }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,103,192,.15);
+  }
+  .status .msg { color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .progress {
+    flex: 1; height: 4px; border-radius: 2px;
+    background: rgba(0,0,0,.08); overflow: hidden;
+  }
+  .progress .fill {
+    width: 62%; height: 100%; border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), #4aa3e8);
+    animation: shimmer 2.2s ease-in-out infinite;
+  }
+  @keyframes shimmer { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 12px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.18); border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.3); background-clip: content-box; border: 3px solid transparent; }
+</style>
+</head>
+<body>
+
+<div class="window">
+
+  <!-- 标题栏 -->
+  <div class="titlebar">
+    <div class="app-icon">⇥</div>
+    <span class="title">Excel 按列拆分工具</span>
+    <div class="caption-btns">
+      <button title="最小化">─</button>
+      <button title="最大化">☐</button>
+      <button class="close" title="关闭">✕</button>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- 侧边导航 -->
+    <nav class="nav">
+      <div class="step active"><span class="no">1</span>选择文件<span class="state done">✓</span></div>
+      <div class="step"><span class="no">2</span>拆分设置<span class="state">2 列</span></div>
+      <div class="step"><span class="no">3</span>输出位置<span class="state done">✓</span></div>
+      <div class="step"><span class="no">4</span>运行日志</div>
+      <div class="spacer"></div>
+      <div class="settings">⚙ 设置</div>
+    </nav>
+
+    <!-- 内容 -->
+    <main class="content">
+
+      <!-- ① 选择文件 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>选择文件</h2>
+          <span class="hint">支持 .xlsx / .xlsm / .xls，或直接拖入窗口</span>
+        </div>
+        <div class="row">
+          <input class="input" value="D:\报表\2026年8月订单总表.xlsx" readonly>
+          <button class="btn">浏览…</button>
+        </div>
+      </section>
+
+      <!-- ② 拆分设置 -->
+      <section class="card" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="card-head">
+          <h2>拆分设置</h2>
+          <span class="hint">按住 Ctrl / Shift 多选拆分依据列</span>
+          <span class="pill">预计生成 18 个文件</span>
+        </div>
+        <div class="row" style="margin-bottom:12px;">
+          <span style="font-size:13px; color:var(--text-secondary);">工作表</span>
+          <select class="combo"><option>订单明细</option><option>汇总</option></select>
+          <span style="font-size:13px; color:var(--text-secondary); margin-left:8px;">表头行</span>
+          <input class="spin" type="number" value="1">
+        </div>
+        <div class="grid-wrap" style="flex:1; overflow-y:auto; min-height:0;">
+          <table>
+            <thead><tr><th style="width:44px;">#</th><th style="width:30px;"></th><th>列名</th><th>示例值</th></tr></thead>
+            <tbody>
+              <tr class="selected"><td class="no">1</td><td><span class="check">✓</span></td><td>地区</td><td class="preview">华东 | 华北 | 华南 …</td></tr>
+              <tr><td class="no">2</td><td><span class="check"></span></td><td>订单编号</td><td class="preview">DD20260801-0001 | DD2026…</td></tr>
+              <tr class="selected"><td class="no">3</td><td><span class="check">✓</span></td><td>产品名称</td><td class="preview">苹果 | 香蕉 | 橙子 …</td></tr>
+              <tr><td class="no">4</td><td><span class="check"></span></td><td>客户</td><td class="preview">张三 | 李四 …</td></tr>
+              <tr><td class="no">5</td><td><span class="check"></span></td><td>下单日期</td><td class="preview">2026-08-01 | 2026-08-01 …</td></tr>
+              <tr><td class="no">6</td><td><span class="check"></span></td><td>数量</td><td class="preview">12 | 5 | 88 …</td></tr>
+              <tr><td class="no">7</td><td><span class="check"></span></td><td>金额</td><td class="preview">¥1,240.00 | ¥360.00 …</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ③ 输出位置 -->
+      <section class="card">
+        <div class="card-head">
+          <h2>输出位置</h2>
+          <span class="hint">已记忆上次目录</span>
+        </div>
+        <div class="row">
+          <input class="input" value="D:\报表\拆分结果">
+          <button class="btn">浏览…</button>
+          <button class="btn">打开目录</button>
+        </div>
+      </section>
+
+      <!-- ④ 运行日志 -->
+      <section class="card">
+        <div class="card-head"><h2>运行日志</h2></div>
+        <div class="log">
+          <div><span class="t">21:58:02</span>已载入: 2026年8月订单总表.xlsx（2,629 行）</div>
+          <div><span class="t">21:58:37</span>开始拆分：依据列「地区 + 产品名称」</div>
+          <div><span class="t">21:58:38</span>已生成: 华东 - 苹果.xlsx</div>
+          <div class="ok"><span class="t">21:58:38</span>已生成: 华东 - 香蕉.xlsx</div>
+          <div class="ok"><span class="t">21:58:38</span>已生成: 华北 - 苹果.xlsx</div>
+        </div>
+      </section>
+
+      <!-- 底部操作栏 -->
+      <footer class="bottombar">
+        <div class="status">
+          <span class="dot"></span>
+          <span class="msg">正在拆分 · 进度 11/18 · 华东 - 橙子</span>
+        </div>
+        <div class="progress"><div class="fill"></div></div>
+        <button class="btn accent">开始拆分</button>
+      </footer>
+
+    </main>
+  </div>
+</div>
+
+</body>
+</html>
