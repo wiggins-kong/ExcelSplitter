@@ -5,6 +5,30 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [v1.1.0] - 2026-09-02
+
+### 界面重构（全新 GUI）
+
+- 引入 **sv_ttk 2.6.1**（Sun Valley 主题），控件全面现代化：圆角、Windows 11 原生观感
+- 新布局：深蓝 header + 徽章式步骤卡片（① 选择文件 / ② 拆分设置 / ③ 输出位置 / ④ 运行日志）
+- 列选择由 Listbox 升级为 **Treeview 表格**（列号 / 列名 / 示例值，支持多选、垂直滚动）
+- 底部操作区：状态指示灯 + 进度条 + 大号 Accent 按钮；运行日志升级为时间+消息表格
+- 窗口默认 824×700，可自由拉伸自适应
+- 新增**文件拖拽**支持（tkinterdnd2 2.6.2 / tkdnd 2.10.1）：文件直接拖到窗口即载入
+- 新增**预计生成数**：选中拆分列后实时估算将生成的文件数
+- 输出目录**记忆**：上次的输出目录自动记住（`%APPDATA%\ExcelSplitter\settings.json`）
+- 拆分任务改为**后台线程执行**，界面不再卡顿；完成提示「成功生成 N 个文件」+「打开输出目录」按钮
+
+### 重构（结构）
+
+- 拆分为两个文件：`excel_splitter.py`（核心逻辑 + CLI，无 GUI 依赖）+ `excel_splitter_gui.py`（GUI）
+- CLI 入口与用法不变；GUI 需系统 Python（tkinter）+ sv_ttk + tkinterdnd2
+
+### 修复
+
+- **Tk 9.0 + sv_ttk 背景重置**：Tk 9.0 会在布局刷新后用主题默认色覆盖 tk 部件显式背景，导致自绘 header 变灰；全部自定义颜色改走 `ttk.Style`
+- 高 DPI：进程 DPI 感知改为 PerMonitorV2（`SetProcessDpiAwarenessContext`）三级回退，配合既有 `dpi_manifest.xml`
+
 ## [v1.0.1] - 2026-09-02
 
 ### 新增

@@ -14,18 +14,22 @@
 - **非破坏性**：原表只读不改，仅新建 / 保存拆分结果
 - **完整保留**：每个拆分文件含完整表头与所有列
 - **非法文件名处理**：`\ / * ? " < > |` → `-`、冒号替换、长度截断到 150
-- **高分屏适配**：窗口声明 DPI 感知，高缩放下界面清晰不模糊
+- **高分屏适配**：PerMonitorV2 级 DPI 感知（代码 + manifest 双保险），高缩放下界面清晰不模糊
+- **现代化界面**（v1.1.0 重新设计）：sv_ttk 圆角风格、深蓝标题栏、步骤卡片式布局、列选择表格（列名 + 示例值）
+- **拖拽载入**：把 Excel 文件直接拖进窗口即载入
+- **预计生成数**：选中拆分列后实时显示将生成的文件数
+- **记忆输出目录**：上次的输出目录自动记住
 
 ## 使用方法
 
 ### 图形界面（推荐）
 
 1. 双击 `dist/ExcelSplitter.exe`（需自行构建，见下方）
-2. 「浏览」选择 Excel 文件（`.xlsx` / `.xlsm` / `.xls`）
+2. 选择文件：「浏览」或直接把文件**拖进窗口**（`.xlsx` / `.xlsm` / `.xls`）
 3. 选择工作表、确认表头行（默认第 1 行）
-4. 在「拆分依据列」里用 **Ctrl / Shift** 多选要按哪些列拆
-5. 选择输出文件夹（默认在原文件旁建一个同名子目录）
-6. 点「开始拆分」→ 带进度条与运行日志
+4. 在「拆分依据列」里用 **Ctrl / Shift** 多选要按哪些列拆，右侧实时显示「预计生成 N 个文件」
+5. 输出位置自动记忆上次目录；也可「浏览…」更换，「打开输出目录」直达结果
+6. 点「开始拆分」→ 后台线程执行不卡界面，带进度条与运行日志
 
 ### 命令行
 
@@ -43,18 +47,22 @@ ExcelSplitter.exe 文件.xlsx --cols 1,3 --out 输出目录 --header 1
 
 ## 从源码构建
 
-需要 **Windows + Python 3.10+**（建议系统自带 Python，需含 `tkinter`）。
+需要 **Windows + Python 3.10+**（建议系统自带 Python，需含 `tkinter`；GUI 界面用 Tk 9.0 的 Python 3.14 实测最稳）。
 
-> **打包机必须装有 `openpyxl`、`xlrd`、`pyinstaller` 三者**，否则 PyInstaller 分析不到模块就不会打进 exe——尤其是 `xlrd`（源码里是可选导入，打包时漏掉后分发到别的机器会报「读取 .xls 文件需要 xlrd 库」）。
+> **打包机必须装有 `openpyxl`、`xlrd`、`pyinstaller`、`sv-ttk`、`tkinterdnd2` 五者**，否则 PyInstaller 分析不到模块就不会打进 exe——尤其是 `xlrd`（源码里是可选导入，打包时漏掉后分发到别的机器会报「读取 .xls 文件需要 xlrd 库」）；`sv_ttk` 的 `sv.tcl` / `tkdnd` 是数据/二进制文件，必须 `--collect-all`。
 
 ```bash
-pip install openpyxl xlrd pyinstaller
-pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --hidden-import xlrd excel_splitter.py
+pip install openpyxl xlrd pyinstaller sv-ttk tkinterdnd2
+pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --clean \
+  --hidden-import xlrd --hidden-import sv_ttk \
+  --collect-all sv_ttk --collect-all tkinterdnd2 \
+  excel_splitter.py
 ```
 
-`--hidden-import xlrd` 确保 xlrd 强制被包含进 exe（双保险）。
+- `--hidden-import xlrd`：确保 xlrd 强制被包含进 exe（双保险）
+- `--collect-all sv_ttk` / `--collect-all tkinterdnd2`：收集主题数据文件与拖拽库二进制，缺了会分别报 `No module named 'sv_ttk'` 或拖拽静默失效
 
-生成的 `dist/ExcelSplitter.exe` 即为可分发单文件。
+生成的 `dist/ExcelSplitter.exe` 即为可分发单文件（约 29 MB）。
 
 > 说明：本仓库**不收录** `dist/` 下的 exe 二进制（避免长期占用仓库体积）。按上面命令即可在任何机器重新生成，结果一致。
 
@@ -78,11 +86,12 @@ git push origin v1.0.0
 ## 目录结构
 
 ```
-excel_splitter.py   # 主程序源码（tkinter GUI + openpyxl/xlrd 读取 + openpyxl 拆分逻辑）
-dpi_manifest.xml    # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
-.github/workflows/  # GitHub Actions 自动打包发布
-CHANGELOG.md        # 版本变更记录
-DEVELOPMENT.md      # 开发进度与踩坑记录（换机/新会话接续用）
+excel_splitter.py       # 核心逻辑 + CLI 入口（读取层 / 拆分逻辑，无 GUI 依赖）
+excel_splitter_gui.py   # GUI 界面（sv_ttk 主题，被 excel_splitter.py 无参数调用）
+dpi_manifest.xml        # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
+.github/workflows/      # GitHub Actions 自动打包发布
+CHANGELOG.md            # 版本变更记录
+DEVELOPMENT.md          # 开发进度与踩坑记录（换机/新会话接续用）
 .gitignore
 README.md
 ```
