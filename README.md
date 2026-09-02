@@ -82,6 +82,7 @@ excel_splitter.py   # 主程序源码（tkinter GUI + openpyxl/xlrd 读取 + ope
 dpi_manifest.xml    # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
 .github/workflows/  # GitHub Actions 自动打包发布
 CHANGELOG.md        # 版本变更记录
+DEVELOPMENT.md      # 开发进度与踩坑记录（换机/新会话接续用）
 .gitignore
 README.md
 ```
