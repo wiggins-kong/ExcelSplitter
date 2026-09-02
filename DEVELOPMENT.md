@@ -7,13 +7,14 @@
 
 ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌面小工具（tkinter GUI + CLI，openpyxl / xlrd 读取，PyInstaller 单文件分发，WPS JS 宏的独立实现）。
 
-## 当前状态（2026-09-02）
+## 当前状态（2026-09-03）
 
-- **版本**：`v2.0.1`（基于 v2.0.0 的 pywebview GUI）：修复文件夹拖放失败 + 选列交互增强（默认多选、全选/反选/取消选择、清除文件、清空日志），**未打 tag / 未推送**
+- **版本**：`v2.0.0`（正式定版，2026-09-03）：pywebview GUI 全面重构 + 拖放/选列交互增强 + 深色主题随系统切换；**已 commit，本地 tag `v2.0.0`，未推送**
 - **代码结构**：`excel_splitter.py`（核心 + CLI，零改动）+ `excel_splitter_gui_web.py`（pywebview 启动器 + JS API 桥）+ `webgui/index.html`（界面）
-- **GUI 特性**：真 Mica（DwmSetWindowAttribute，Win11 22H2+；失败回退 CSS 渐变）、Acrylic 毛玻璃卡片、双栏布局（左配置/右执行与日志）、HTML 表格多选（默认点击多选 / Shift 范围选 / 全选·反选·取消选择）、HTML5 拖放（文件/文件夹真实路径）、预计生成数、目录记忆、后台线程拆分、清除文件、清空日志
-- **已验证**：源码 GUI 启动冒烟；exe CLI 拆分 2 文件 0 失败（23:45 重建）；exe GUI 启动存活；拖放修复经 pywebview 源码链路确认 + 单测/集成测试（路由、目录记忆、emit 合法性）
-- **未验证**：GUI 全流程人工操作（载入→选列→估算→拆分）；真机拖拽（含文件夹放行）；Mica 视觉效果（需人工看）
+- **GUI 特性**：真 Mica（DwmSetWindowAttribute，Win11 22H2+；失败回退 CSS 渐变）、Acrylic 毛玻璃卡片、双栏布局（左配置/右执行与日志）、HTML 表格多选（默认点击多选 / Shift 范围选 / 全选·反选·取消选择）、HTML5 拖放（文件/文件夹真实路径）、预计生成数、目录记忆、后台线程拆分、清除文件、清空日志、**深浅双主题随 Windows 系统切换**
+- **主题机制**：`webgui/index.html` 双套 CSS Tokens（`:root` 浅色 / `html[data-theme="dark"]` 深色，所有组件颜色全走变量）；前端 `matchMedia('(prefers-color-scheme: dark)')` 实时切换 + 后端注册表权威注入（onReady 三参 + `get_theme()` 兜底复查）；`transparent=not dark`——深色纯色底 + CSS 渐变，浅色透明 Mica；`DwmSetWindowAttribute(20, ImmersiveDarkMode)` 切标题栏/边框。深色初版见 `design/dark_theme_demo.html`
+- **已验证**：源码 GUI 启动冒烟（含深色改动，09-03 00:0x 重启存活无 traceback）；源码/打包后 JS、Python 语法检查全过；exe 重打包 2 次（00:13/00:25）均完成；exe CLI 拆分 3 文件 0 失败；深色根因已修（见必知坑 9/10）；**用户真机确认深色观感正常（09-03 00:30）**；已 commit + 本地 tag `v2.0.0`（未推送）
+- **未验证**：GUI 全流程人工操作（载入→选列→估算→拆分）；真机拖拽（含文件夹放行）
 - **Python 3.14 位置已变**：`AppData\Local\Python\pythoncore-3.14-64`（GUI 打包用，含 tkinter 无所谓了；依赖需单独装：openpyxl/xlrd/pyinstaller/pywebview）
 
 ## 必知坑（踩过，请别再踩）
@@ -32,6 +33,8 @@ ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌
    - **前端拖放区 drop handler 禁止 `stopPropagation()`、禁止提前清 `__hoverZone`**（v2.0.1 踩穿）：事件必须冒泡到 document 才能触发 pywebview 原生监听并注入 `pywebviewFullPath`；zone 由后端 `_on_dom_drop`「消费」式读取后清空。曾因 stopPropagation 导致文件夹拖放 100% 失败、只弹「未能获取文件夹路径」（前端兜底拿不到 WebView2 沙箱里的 File.path）
    - 文件夹拖入取决于 WebView2 是否放行目录（多数放行）；不放行时前端 fallback 弹提示引导「浏览…」
    - 前端加超时自愈：拖放 1.2s 无后端反馈 → 文件区自动 base64 载入（`Api.load_blob`）、文件夹区提示；后端命中拖放区后须先 `window.flagDrop()` 防重复提示
+9. **深色系统下别用透明 Mica（v2.0.1 深色主题踩穿）**：部分环境深色 Mica 溢出的底色是浅灰白，`transparent=True + 内容透明` 会把内容区整片染白（标题栏深、内容白就是它）。对策：`create_window(transparent=not dark, background_color="#0f1113" if dark else "#e8ecf1")`，深色走 CSS 渐变兜底、浅色走 Mica；`on_loaded` 里 `mica_ok = bool(hwnd) and (not dark) and _set_mica_hwnd(hwnd)`。
+10. **深色主题判定双保险**：前端 `matchMedia('(prefers-color-scheme: dark)')` 在 WebView2 里可能滞后/失准 → `onReady` 第三参由后端读注册表 `AppsUseLightTheme` 权威注入；再加 `Api.get_theme()` 让前端 `applyBackendTheme()` 主动复查（防 onReady 时序不达白屏）。诊断日志写 `%TEMP%\ExcelSplitter\theme.log`（`_theme_log()`）。
 
 ## 关键代码位置
 
@@ -70,11 +73,11 @@ git push origin main && git push origin vX.Y.Z
 
 - 推送 `v*` tag → Actions 自动构建并把 `ExcelSplitter.exe` 挂到 Release
 - 发版前需同步：`CHANGELOG.md` 补发布日期、本文件「当前状态」更新
-- `v2.0.0` 待用户本地试用满意后推送（`git tag v2.0.0` + push）
+- `v2.0.0`：已 commit + 本地 tag，**待用户确认后推送**（`git push origin main && git push origin v2.0.0`）
 
 ## 项目约定 / 用户偏好
 
-- 中文沟通、极简指令、**直接执行少反问**
+- 中文沟通、极简指令
 - 不喜欢冗余文件与代码（`build.bat` 曾按用户要求删除）；保持文档精简
 - 仓库不收录 `dist/` 产物与 `.workbuddy/`（均已 .gitignore）
 - git 身份：本仓库 local 配置为 `WorkBuddy User <user@workbuddy.local>`（与历史提交一致）

@@ -5,24 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [v2.0.1] - 2026-09-02
-
-### 新增
-
-- **拆分组选列改为默认多选**：点击列名即「勾选/取消勾选」一个（不再清空其他列），Shift 仍支持范围选择
-- 新增 3 个选列工具按钮：**全选 / 反选 / 取消选择**（与「工作表 / 表头行」同排、靠右对齐，载入文件后才可用）
-- **「选择文件」模块新增「清除」按钮**：一键清空文件选择框 + 拆分设置的列列表 / 工作表 / 表头行（预计生成数隐藏），回到初始状态
-- **「运行日志」模块新增「清空日志」按钮**：清空日志区（日志为空时自动禁用）
-
-### 修复
-
-- **文件夹拖到「输出位置」失败（"未能获取文件夹路径"）**：
-  - 根因：前端拖放区 `drop` handler 调用了 `e.stopPropagation()` 并提前把 `window.__hoverZone` 置空，导致 drop 事件**不冒泡到 document**，pywebview 原生 DOM 监听（`window.dom.document.events.drop`）永远收不到事件，`pywebviewFullPath` 真实路径注入链路（`FilesDropped` → 文件名匹配）根本未执行；前端兜底对文件夹又拿不到 `File.path`（WebView2 沙箱恒为 null），只能弹提示引导「浏览…」
-  - 修复：前端拖放区 `drop` handler 不再 `stopPropagation` / 不清空 `__hoverZone`，让事件冒泡到 document 交给后端原生监听路由；后端 `_on_dom_drop`「消费」式读取 `__hoverZone` 后立即清空，并在命中拖放区时先置 `__dropFeedback` 阻止前端超时兜底重复提示
-  - 顺带修复：文件夹拖放成功的 toast 此前因 JS 嵌套引号是语法错误（`toast("已设为 "C:\...""）`）而不显示，已统一为 `toast(json.dumps(...))` 写法
-  - 效果：文件夹拖入「输出位置」经原生链路取到真实路径并设为输出目录（记忆）；文件拖放链路同样受益（不再等 1.2s 超时兜底）
-
-## [v2.0.0] - 2026-09-02
+## [v2.0.0] - 2026-09-03
 
 ### 重大变更：GUI 全面重构（Win11 Fluent）
 
@@ -37,6 +20,26 @@
 - 拆分后台线程执行，进度 / 日志实时推送到界面
 - 输出目录记忆（`%APPDATA%\ExcelSplitter\settings.json`，沿用）
 - 核心拆分逻辑 `excel_splitter.py` 与 CLI 用法**零改动**
+
+### 新增
+
+- **深色主题，随 Windows 深浅自动切换**：
+  - 双套 CSS Design Tokens（`:root` 浅色 / `html[data-theme="dark"]` 深色），所有组件颜色走变量，切换零样式重复
+  - 前端 `matchMedia('(prefers-color-scheme: dark)')` 实时跟随系统切换 + 后端注册表（`AppsUseLightTheme`）权威注入兜底
+  - 标题栏 / 窗口边框随系统深浅：`DwmSetWindowAttribute(20, ImmersiveDarkMode)`
+  - 深色系统下窗口采用纯色底 + CSS 深色渐变，规避深色 Mica 溢出浅底导致的内容区发白
+  - 交互增强：点击列名即「勾选/取消勾选」（默认多选，不再清空其他列），Shift 仍支持范围选择
+- 新增 3 个选列工具按钮：**全选 / 反选 / 取消选择**（与「工作表 / 表头行」同排、靠右对齐，载入文件后才可用）
+- **「选择文件」模块新增「清除」按钮**：一键清空文件选择框 + 拆分设置的列列表 / 工作表 / 表头行（预计生成数隐藏），回到初始状态
+- **「运行日志」模块新增「清空日志」按钮**：清空日志区（日志为空时自动禁用）
+
+### 修复
+
+- **文件夹拖到「输出位置」失败（"未能获取文件夹路径"）**：
+  - 根因：前端拖放区 `drop` handler 调用了 `e.stopPropagation()` 并提前把 `window.__hoverZone` 置空，导致 drop 事件**不冒泡到 document**，pywebview 原生 DOM 监听（`window.dom.document.events.drop`）永远收不到事件，`pywebviewFullPath` 真实路径注入链路（`FilesDropped` → 文件名匹配）根本未执行；前端兜底对文件夹又拿不到 `File.path`（WebView2 沙箱恒为 null），只能弹提示引导「浏览…」
+  - 修复：前端拖放区 `drop` handler 不再 `stopPropagation` / 不清空 `__hoverZone`，让事件冒泡到 document 交给后端原生监听路由；后端 `_on_dom_drop`「消费」式读取 `__hoverZone` 后立即清空，并在命中拖放区时先置 `__dropFeedback` 阻止前端超时兜底重复提示
+  - 顺带修复：文件夹拖放成功的 toast 此前因 JS 嵌套引号是语法错误（`toast("已设为 "C:\...""）`）而不显示，已统一为 `toast(json.dumps(...))` 写法
+  - 效果：文件夹拖入「输出位置」经原生链路取到真实路径并设为输出目录（记忆）；文件拖放链路同样受益（不再等 1.2s 超时兜底）
 
 ### 打包
 

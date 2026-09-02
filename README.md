@@ -9,16 +9,19 @@
 ## 功能特性
 
 - **Win11 Fluent 界面**：pywebview + WebView2 实现，真 Mica 云母背景（Win11 22H2+，旧系统自动回退 CSS 模拟）、毛玻璃卡片、微软雅黑字体
+- **深浅双主题，随 Windows 自动切换**：深色 / 浅色两套 Design Tokens + 标题栏同步，系统切主题程序即时跟随
 - **双栏布局**：左栏「选择文件 → 拆分设置 → 输出位置」，右栏「开始拆分（进度）→ 运行日志」
 - **多格式输入**：支持 `.xlsx` / `.xlsm` / `.xls`（.xls 由 xlrd 读取，日期单元格自动转 datetime）
 - **按多列组合分组**：选中「地区」「产品」两列 → 自动拆成 `华东 - 苹果.xlsx`、`华北 - 香蕉.xlsx`……每个唯一组合生成一个文件
+- **灵活选列**：点击列名即多选 / 反选（默认不打断已有选择），支持 Shift 范围选，配「全选 / 反选 / 取消选择」工具按钮
 - **强力数据清洗**：空值 → `空白`、去首尾空格、去单元格内换行 / 制表符（专门解决「看着一样却没分到一组」的坑）
 - **非破坏性**：原表只读不改，仅新建 / 保存拆分结果
 - **完整保留**：每个拆分文件含完整表头与所有列
 - **非法文件名处理**：`\ / * ? " < > |` → `-`、冒号替换、长度截断到 150
-- **拖拽载入**：把 Excel 文件直接拖进窗口即载入
+- **拖拽载入**：把 Excel 文件直接拖进窗口即载入；文件夹拖到「输出位置」即设为输出目录
 - **预计生成数**：选中拆分列后实时显示将生成的文件数
 - **记忆输出目录**：上次的输出目录自动记住
+- **随手清整**：「清除」一键回到初始状态、「清空日志」随时清掉运行记录
 
 ## 使用方法
 
@@ -70,28 +73,28 @@ pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_man
 
 ```bash
 # 1. 确保所有改动已提交并推送到 GitHub
-git add -A && git commit -m "release: v1.0.0" && git push origin main
+git add -A && git commit -m "release: v2.0.0" && git push origin main
 
 # 2. 打 tag 并推送（push tag 即触发 Actions 自动构建 + 发版）
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
-推送 tag 后，到仓库的 **Actions** 页看构建进度；成功后 **Releases** 页会出现 `v1.0.0`，里面带可直接下载的 `ExcelSplitter.exe`。
+推送 tag 后，到仓库的 **Actions** 页看构建进度；成功后 **Releases** 页会出现 `v2.0.0`，里面带可直接下载的 `ExcelSplitter.exe`。
 
-> 改代码后发新版：本地重新 `git tag v1.0.1`（递增版本号）→ `git push origin v1.0.1` 即可，无需手动上传文件。
+> 改代码后发新版：本地重新 `git tag v2.1.0`（递增版本号）→ `git push origin v2.1.0` 即可，无需手动上传文件。
 
 ## 目录结构
 
 ```
 excel_splitter.py            # 核心逻辑 + CLI 入口（读取层 / 拆分逻辑，无 GUI 依赖）
-excel_splitter_gui_web.py    # GUI（pywebview + WebView2 + 真 Mica，被 excel_splitter.py 无参数调用）
-webgui/index.html            # GUI 界面（HTML/CSS/JS，Win11 Fluent 设计）
+excel_splitter_gui_web.py    # GUI（pywebview + WebView2 + 真 Mica + 深浅主题，被 excel_splitter.py 无参数调用）
+webgui/index.html            # GUI 界面（HTML/CSS/JS，Win11 Fluent 设计，双主题 Tokens）
 dpi_manifest.xml             # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
 .github/workflows/           # GitHub Actions 自动打包发布
 CHANGELOG.md                 # 版本变更记录
 DEVELOPMENT.md               # 开发进度与踩坑记录（换机/新会话接续用）
-design/                      # UI 设计稿（HTML demo）
+design/                      # UI 设计稿（HTML demo，含深色主题初稿）
 .gitignore
 README.md
 ```

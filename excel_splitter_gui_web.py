@@ -36,6 +36,44 @@ def _settings_path():
     return os.path.join(base, "ExcelSplitter", "settings.json")
 
 
+def _system_dark():
+    """读取系统主题：AppsUseLightTheme=0 → 深色。失败默认浅色。"""
+    try:
+        import winreg
+        k = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                           r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        try:
+            v, _ = winreg.QueryValueEx(k, "AppsUseLightTheme")
+            return v == 0
+        finally:
+            winreg.CloseKey(k)
+    except Exception:
+        return False
+
+
+def _theme_log(msg):
+    """主题诊断日志：写 %TEMP%\\ExcelSplitter\\theme.log，排查深色/白屏问题用。"""
+    try:
+        import tempfile
+        d = os.path.join(tempfile.gettempdir(), "ExcelSplitter")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "theme.log"), "a", encoding="utf-8") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+
+
+def _set_window_dark(hwnd, dark):
+    """DWM Immersive Dark Mode：让系统标题栏 / 边框随主题切换深浅。"""
+    try:
+        val = ctypes.c_int(1 if dark else 0)
+        return ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd, _DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ctypes.byref(val), ctypes.sizeof(val)) == 0
+    except Exception:
+        return False
+
+
 def load_settings():
     try:
         with open(_settings_path(), "r", encoding="utf-8") as f:
@@ -66,6 +104,7 @@ class Api:
 
     def __init__(self):
         self._win = None
+        self._hwnd = 0
         self._splitting = False
         self._dom_ok = False
         self._mica_ok = False
@@ -108,6 +147,21 @@ class Api:
     def mica_active(self):
         """当前窗口是否成功开启真 Mica（前端据此决定是否启用 CSS 回退）。"""
         return getattr(self, "_mica_ok", False)
+
+    def get_theme(self):
+        """前端兜底查询主题（不依赖 onReady 时序）：深色 + Mica 状态。"""
+        return {"dark": _system_dark(), "mica_ok": getattr(self, "_mica_ok", False)}
+
+    def set_theme(self, dark):
+        """跟随系统主题：刷新窗口标题栏 / 边框深浅（DWM Immersive Dark Mode）。
+
+        前端 matchMedia 检测到 prefers-color-scheme 变化时调用；
+        页面内主题（data-theme）由前端自己切换，这里只管窗口边框。"""
+        dark = bool(dark)
+        hwnd = getattr(self, "_hwnd", 0) or 0
+        if hwnd and _set_window_dark(hwnd, dark):
+            return {"ok": True, "dark": dark}
+        return {"ok": False, "dark": dark}
 
     def pick_file(self):
         result = self._win.create_file_dialog(
@@ -342,13 +396,17 @@ def _set_mica_hwnd(hwnd):
 def run_gui():
     """GUI 入口（由 excel_splitter.py 无参数调用，或本文件直接运行）。"""
     api = Api()
+    dark = _system_dark()
+    _theme_log("run_gui system_dark=%s (create_window)" % dark)
     window = webview.create_window(
         WINDOW_TITLE,
         os.path.join(GUI_DIR, "index.html"),
         js_api=api,
         width=1060, height=720, min_size=(900, 620),
-        background_color="#e8ecf1",
-        transparent=True,   # WebView2 背景透明，真 Mica 才能透出；CSS 渐变负责兜底
+        # 深色：纯色底 + 前端 CSS 深色渐变兜底（部分环境深色 Mica 溢浅色底 → 全白）；
+        # 浅色：走透明 Mica。起始底色随系统主题避免白闪。
+        background_color="#0f1113" if dark else "#e8ecf1",
+        transparent=not dark,
     )
     api._win = window
 
@@ -365,14 +423,24 @@ def run_gui():
         except Exception as e:
             api._dom_ok = False
             print("DOM 拖放绑定失败（将仅支持「浏览…」）: " + str(e))
+        dark = _system_dark()
+        _theme_log("on_loaded called, system_dark=%s" % dark)
         try:
             hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
-            api._mica_ok = bool(hwnd) and _set_mica_hwnd(hwnd)
-        except Exception:
+            api._hwnd = hwnd
+            if hwnd:
+                _set_window_dark(hwnd, dark)
+            # 深色系统：不启用透明 Mica —— 部分环境/驱动下深色 Mica 溢出的底色是
+            # 浅灰白，会把整个内容区染白。统一交给前端 CSS 深色渐变（body.no-mica）兜底。
+            api._mica_ok = bool(hwnd) and (not dark) and _set_mica_hwnd(hwnd)
+            _theme_log("mica_ok=%s hwnd=%s" % (api._mica_ok, hwnd))
+        except Exception as e:
             api._mica_ok = False
-        window.evaluate_js("window.onReady(%s, %s)" %
+            _theme_log("theme/backend exception: %s" % e)
+        window.evaluate_js("window.onReady(%s, %s, %s)" %
                            ("true" if api._dom_ok else "false",
-                            "true" if api._mica_ok else "false"))
+                            "true" if api._mica_ok else "false",
+                            "true" if dark else "false"))
 
     window.events.loaded += on_loaded
     webview.start(debug=False)
