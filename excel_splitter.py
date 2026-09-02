@@ -7,6 +7,7 @@ ExcelSplitter - 按选中列拆分 Excel 工作表为多个文件
 用法:
   GUI 模式 : 直接双击运行（无参数）
   CLI 模式 : ExcelSplitter.exe input.xlsx --cols 1,3 --out 输出目录 --header 1
+             （支持 .xlsx / .xlsm / .xls）
 """
 import os
 import re
@@ -23,8 +24,75 @@ try:
 except ImportError:
     _HAS_TK = False
 
+# .xls 旧格式读取依赖（openpyxl 只支持 .xlsx / .xlsm）
+try:
+    import xlrd
+    _HAS_XLRD = True
+except ImportError:
+    _HAS_XLRD = False
+
 # Windows 文件名非法字符
 _ILLEGAL = re.compile(r'[\\/:*?"<>|]')
+
+
+def _is_xls(path):
+    """按扩展名判断是否为 .xls 旧格式。"""
+    return os.path.splitext(path)[1].lower() == ".xls"
+
+
+def _require_xlrd():
+    if not _HAS_XLRD:
+        raise ValueError("读取 .xls 文件需要 xlrd 库，请先安装：pip install xlrd")
+
+
+def _xls_value(sh, r, c):
+    """xlrd 单元格取值，日期类型转成 datetime（与 openpyxl 行为对齐）。"""
+    if sh.cell_type(r, c) == xlrd.XL_CELL_DATE:
+        try:
+            return xlrd.xldate_as_datetime(sh.cell_value(r, c), sh.book.datemode)
+        except Exception:
+            pass
+    return sh.cell_value(r, c)
+
+
+def list_sheets(path):
+    """返回工作簿内所有工作表名（按扩展名自动分派 .xls / .xlsx）。"""
+    if _is_xls(path):
+        _require_xlrd()
+        wb = xlrd.open_workbook(path)
+        try:
+            return wb.sheet_names()
+        finally:
+            wb.release_resources()
+    wb = openpyxl.load_workbook(path)
+    try:
+        return wb.sheetnames
+    finally:
+        wb.close()
+
+
+def read_sheet_rows(path, sheet=None):
+    """读取指定工作表为 rows（list[list]，含表头行）。按扩展名自动分派。
+
+    注意：xlsx 不能用 read_only=True！部分工具导出的 xlsx 内部 <dimension>
+    声明错误（如只写 A1，实际数据到 AK2629），read_only 模式信任该声明会把
+    工作表截断成 1x1，导致只读到第一个表头单元格。常规模式不受影响。
+    """
+    if _is_xls(path):
+        _require_xlrd()
+        wb = xlrd.open_workbook(path)
+        try:
+            sh = wb.sheet_by_name(sheet) if sheet else wb.sheet_by_index(0)
+            return [[_xls_value(sh, r, c) for c in range(sh.ncols)]
+                    for r in range(sh.nrows)]
+        finally:
+            wb.release_resources()
+    wb = openpyxl.load_workbook(path, data_only=True)
+    try:
+        ws = wb[sheet] if sheet else wb.active
+        return [list(row) for row in ws.iter_rows(values_only=True)]
+    finally:
+        wb.close()
 
 
 def clean_cell(value):
@@ -78,12 +146,9 @@ def split_workbook(path, sheet=None, col_indices=None, header_row=1,
     col_indices = sorted(set(int(i) for i in col_indices))
     sel = [i - 1 for i in col_indices]  # 转 0-based
 
-    wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
-    try:
-        ws = wb[sheet] if sheet else wb.active
-        rows = list(ws.iter_rows(values_only=True))
-    finally:
-        wb.close()
+    # 统一读取：.xls 走 xlrd、.xlsx/.xlsm 走 openpyxl 常规模式
+    # （不能用 read_only=True，原因见 read_sheet_rows 注释）
+    rows = read_sheet_rows(path, sheet)
 
     if not rows:
         raise ValueError("工作表为空")
@@ -276,16 +341,14 @@ def _build_gui():
     def browse_file():
         p = filedialog.askopenfilename(
             title="选择 Excel 文件",
-            filetypes=[("Excel 文件", "*.xlsx *.xlsm"), ("所有文件", "*.*")])
+            filetypes=[("Excel 文件", "*.xlsx *.xlsm *.xls"), ("所有文件", "*.*")])
         if not p:
             return
         path_var.set(p)
         out_var.set(os.path.join(os.path.dirname(p),
                                 os.path.splitext(os.path.basename(p))[0]))
         try:
-            wb = openpyxl.load_workbook(p, read_only=True)
-            sheets = wb.sheetnames
-            wb.close()
+            sheets = list_sheets(p)
             sheet_combo['values'] = sheets
             sheet_var.set(sheets[0] if sheets else "")
             load_columns()
@@ -298,11 +361,8 @@ def _build_gui():
         if not p:
             return
         try:
-            wb = openpyxl.load_workbook(p, read_only=True)
-            ws = wb[sheet_var.get()] if sheet_var.get() else wb.active
             hr = header_var.get()
-            rows = list(ws.iter_rows(values_only=True))
-            wb.close()
+            rows = read_sheet_rows(p, sheet_var.get() or None)
             col_listbox.delete(0, tk.END)
             if not rows or hr < 1 or hr > len(rows):
                 return
@@ -437,7 +497,7 @@ def _build_gui():
 
 def main():
     parser = argparse.ArgumentParser(description="按选中列拆分 Excel")
-    parser.add_argument("input", nargs="?", help="输入 xlsx 路径")
+    parser.add_argument("input", nargs="?", help="输入 xlsx/xls 路径")
     parser.add_argument("--cols", help="拆分列(1-based,逗号分隔), 如 1,3")
     parser.add_argument("--sheet", help="工作表名")
     parser.add_argument("--header", type=int, default=1, help="表头行(默认1)")

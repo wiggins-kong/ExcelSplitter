@@ -2,10 +2,13 @@
 
 把一张 Excel 总表，按你**指定的若干列**自动拆分成多个独立的 `.xlsx` 文件。
 
+支持输入 `.xlsx` / `.xlsm` / `.xls`，输出统一为 `.xlsx`。
+
 这是 WPS 表格 JS 宏 `SplitByNonAdjacentSelection` 的**独立桌面版实现**——不依赖 WPS，双击即用，跨平台（Windows / 打包后单文件分发）。
 
 ## 功能特性
 
+- **多格式输入**：支持 `.xlsx` / `.xlsm` / `.xls`（.xls 由 xlrd 读取，日期单元格自动转 datetime）
 - **按多列组合分组**：选中「地区」「产品」两列 → 自动拆成 `华东 - 苹果.xlsx`、`华北 - 香蕉.xlsx`……每个唯一组合生成一个文件
 - **强力数据清洗**：空值 → `空白`、去首尾空格、去单元格内换行 / 制表符（专门解决「看着一样却没分到一组」的坑）
 - **非破坏性**：原表只读不改，仅新建 / 保存拆分结果
@@ -18,7 +21,7 @@
 ### 图形界面（推荐）
 
 1. 双击 `dist/ExcelSplitter.exe`（需自行构建，见下方）
-2. 「浏览」选择 Excel 文件（`.xlsx` / `.xlsm`）
+2. 「浏览」选择 Excel 文件（`.xlsx` / `.xlsm` / `.xls`）
 3. 选择工作表、确认表头行（默认第 1 行）
 4. 在「拆分依据列」里用 **Ctrl / Shift** 多选要按哪些列拆
 5. 选择输出文件夹（默认在原文件旁建一个同名子目录）
@@ -32,7 +35,7 @@ ExcelSplitter.exe 文件.xlsx --cols 1,3 --out 输出目录 --header 1
 
 | 参数 | 说明 |
 | --- | --- |
-| `input` | 输入 xlsx 路径（位置参数） |
+| `input` | 输入 xlsx/xls 路径（位置参数） |
 | `--cols` | 拆分列（1-based，逗号分隔，如 `1,3`） |
 | `--sheet` | 指定工作表名 |
 | `--header` | 表头行号，默认 `1` |
@@ -42,10 +45,14 @@ ExcelSplitter.exe 文件.xlsx --cols 1,3 --out 输出目录 --header 1
 
 需要 **Windows + Python 3.10+**（建议系统自带 Python，需含 `tkinter`）。
 
+> **打包机必须装有 `openpyxl`、`xlrd`、`pyinstaller` 三者**，否则 PyInstaller 分析不到模块就不会打进 exe——尤其是 `xlrd`（源码里是可选导入，打包时漏掉后分发到别的机器会报「读取 .xls 文件需要 xlrd 库」）。
+
 ```bash
-pip install openpyxl pyinstaller
-pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml excel_splitter.py
+pip install openpyxl xlrd pyinstaller
+pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --hidden-import xlrd excel_splitter.py
 ```
+
+`--hidden-import xlrd` 确保 xlrd 强制被包含进 exe（双保险）。
 
 生成的 `dist/ExcelSplitter.exe` 即为可分发单文件。
 
@@ -71,8 +78,10 @@ git push origin v1.0.0
 ## 目录结构
 
 ```
-excel_splitter.py   # 主程序源码（tkinter GUI + openpyxl 拆分逻辑）
+excel_splitter.py   # 主程序源码（tkinter GUI + openpyxl/xlrd 读取 + openpyxl 拆分逻辑）
 dpi_manifest.xml    # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
+.github/workflows/  # GitHub Actions 自动打包发布
+CHANGELOG.md        # 版本变更记录
 .gitignore
 README.md
 ```
