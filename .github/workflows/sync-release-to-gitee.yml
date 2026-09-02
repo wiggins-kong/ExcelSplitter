@@ -1,0 +1,101 @@
+name: Sync Release to Gitee
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  sync-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Push tag to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git
+          git push gitee tag ${{ github.event.release.tag_name }}
+
+      - name: Create Gitee release and upload assets
+        uses: actions/github-script@v7
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        with:
+          script: |
+            const giteeOwner = 'wiggins-kong';
+            const giteeRepo = 'ExcelSplitte';
+            const GITEE_TOKEN = process.env.GITEE_TOKEN;
+            const rel = context.payload.release;
+            const repo = context.repo;
+
+            async function getGiteeReleaseByTag(tag) {
+              const r = await fetch(
+                `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases/tags/${tag}?access_token=${GITEE_TOKEN}`);
+              return r.ok ? r.json() : null;
+            }
+
+            let giteeRel = await getGiteeReleaseByTag(rel.tag_name);
+            if (!giteeRel) {
+              const body = {
+                access_token: GITEE_TOKEN,
+                tag_name: rel.tag_name,
+                name: rel.name || rel.tag_name,
+                body: rel.body || '',
+                prerelease: rel.prerelease,
+              };
+              const createResp = await fetch(
+                `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                });
+              const createJson = await createResp.json();
+              if (!createResp.ok) {
+                throw new Error('创建 Gitee Release 失败: ' + JSON.stringify(createJson));
+              }
+              giteeRel = createJson;
+            }
+            const giteeReleaseId = giteeRel.id;
+            console.log('Gitee release id:', giteeReleaseId);
+
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: repo.owner, repo: repo.repo, release_id: rel.id,
+            });
+            console.log('GitHub assets:', assets.map(a => a.name).join(', ') || '(无)');
+            for (const asset of assets) {
+              try {
+                const dl = await fetch(
+                  `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/assets/${asset.id}`, {
+                    headers: {
+                      Authorization: `token ${process.env.GITHUB_TOKEN}`,
+                      Accept: 'application/octet-stream',
+                      'User-Agent': 'excel-splitter-gitee-sync',
+                    },
+                  });
+                if (!dl.ok) {
+                  console.log(`下载 ${asset.name} 失败: ${dl.status}`);
+                  continue;
+                }
+                const buf = Buffer.from(await dl.arrayBuffer());
+                const form = new FormData();
+                form.append('access_token', GITEE_TOKEN);
+                form.append('attach_files', new Blob([buf]), asset.name);
+                const up = await fetch(
+                  `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/attach_files`, {
+                    method: 'POST',
+                    body: form,
+                  });
+                const upJson = await up.json();
+                if (!up.ok) {
+                  console.log(`附件 ${asset.name} 上传失败: ${JSON.stringify(upJson)}`);
+                } else {
+                  console.log(`附件 ${asset.name} 已上传 (${buf.length} 字节)`);
+                }
+              } catch (err) {
+                console.log(`附件 ${asset.name} 上传异常: ${err.message}`);
+              }
+            }

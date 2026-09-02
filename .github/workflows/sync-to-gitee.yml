@@ -1,0 +1,21 @@
+name: Sync to Gitee
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0    # 拉取全部分支和 tag 历史，否则推不全
+
+      - name: Push branches and tags to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git
+          git push gitee --all
+          git push gitee --tags
