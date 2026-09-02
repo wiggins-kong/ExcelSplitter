@@ -148,8 +148,8 @@ class ExcelSplitterApp:
         ttk.Label(header, text="选择拆分列 → 自动按组合拆分 → 每个组合生成一个独立 Excel 文件",
                   style="HeaderSub.TLabel").pack(anchor=tk.W, padx=24, pady=(2, 12))
 
-    def _card(self, num, title, hint=""):
-        f = ttk.LabelFrame(self.content, padding=(16, 12, 16, 14))
+    def _card(self, num, title, hint="", parent=None):
+        f = ttk.LabelFrame(parent or self.content, padding=(16, 12, 16, 14))
         f.pack(fill=tk.X, pady=(0, 12))
         head = ttk.Frame(f)
         head.pack(fill=tk.X, pady=(0, 10))
@@ -160,11 +160,28 @@ class ExcelSplitterApp:
         return f
 
     def _build_cards(self):
-        self.content = ttk.Frame(self.root, padding=(24, 14))
+        self.content = ttk.Frame(self.root, padding=(18, 12))
         self.content.pack(fill=tk.BOTH, expand=True)
+        # 底部通栏(状态+进度)
+        self.bottom = ttk.Frame(self.content)
+        self.bottom.pack(side=tk.BOTTOM, fill=tk.X, pady=(8, 0))
+        # 主区两栏
+        main = ttk.Frame(self.content)
+        main.pack(fill=tk.BOTH, expand=True)
+        self.content.columnconfigure(0, weight=1)
+        main.columnconfigure(0, weight=3, uniform="col")
+        main.columnconfigure(1, weight=2, uniform="col")
+        main.rowconfigure(0, weight=1)
+        left = ttk.Frame(main)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
+        right = ttk.Frame(main)
+        right.grid(row=0, column=1, sticky="nsew")
+        self._log_parent = right
+        left.rowconfigure(1, weight=1)
+        right.rowconfigure(1, weight=1)
 
-        # ① 选择文件
-        c1 = self._card("1", "选择文件", "支持 .xlsx / .xlsm / .xls")
+        # ── 左列:① 选择文件 ──
+        c1 = self._card("1", "选择文件", "支持 .xlsx / .xlsm / .xls", parent=left)
         r1 = ttk.Frame(c1)
         r1.pack(fill=tk.X)
         ttk.Entry(r1, textvariable=self.path_var, font=FONT).pack(
@@ -173,8 +190,9 @@ class ExcelSplitterApp:
         ttk.Label(c1, text="也可以把 Excel 文件直接拖到窗口上",
                   style="CardHint.TLabel").pack(anchor=tk.W, pady=(8, 0))
 
-        # ② 拆分设置
-        c2 = self._card("2", "拆分设置")
+        # ── 左列:② 拆分设置(弹性) ──
+        c2 = self._card("2", "拆分设置", parent=left)
+        c2.pack(fill=tk.BOTH, expand=True)
         opt = ttk.Frame(c2)
         opt.pack(fill=tk.X, pady=(0, 10))
         ttk.Label(opt, text="工作表").pack(side=tk.LEFT)
@@ -190,25 +208,30 @@ class ExcelSplitterApp:
 
         ttk.Label(c2, text="拆分依据列（按住 Ctrl / Shift 可多选）").pack(anchor=tk.W, pady=(0, 6))
         tw = ttk.Frame(c2)
-        tw.pack(fill=tk.X)
+        tw.pack(fill=tk.BOTH, expand=True)
         self.col_tree = ttk.Treeview(tw, columns=("no", "name", "preview"), show="headings",
                                      height=6, selectmode="extended")
         self.col_tree.heading("no", text="#")
         self.col_tree.heading("name", text="列名")
         self.col_tree.heading("preview", text="示例值")
         self.col_tree.column("no", width=42, anchor=tk.CENTER, stretch=False)
-        self.col_tree.column("name", width=190)
-        self.col_tree.column("preview", width=230)
+        self.col_tree.column("name", width=180)
+        self.col_tree.column("preview", width=210)
         vsb = ttk.Scrollbar(tw, orient=tk.VERTICAL, command=self.col_tree.yview)
         self.col_tree.configure(yscrollcommand=vsb.set)
-        self.col_tree.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.col_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.col_tree.bind("<<TreeviewSelect>>", lambda e: self.update_estimate())
 
-        # ③ 输出位置
-        c3 = self._card("3", "输出位置", None)
+        # ── 左列底部:开始按钮 ──
+        self.btn_split = ttk.Button(left, text="开始拆分", style="Accent.TButton",
+                                    command=self.do_split)
+        self.btn_split.pack(fill=tk.X, ipady=5)
+
+        # ── 右列:③ 输出位置 ──
+        c3 = self._card("3", "输出位置", parent=right)
         self.hint_label = ttk.Label(c3, textvariable=self.hint_var, style="CardHint.TLabel")
-        self.hint_label.pack(side=tk.TOP, anchor=tk.E, pady=(0, 0))
+        self.hint_label.pack(side=tk.TOP, anchor=tk.E, pady=(0, 4))
         r3 = ttk.Frame(c3)
         r3.pack(fill=tk.X)
         ttk.Entry(r3, textvariable=self.out_var, font=FONT).pack(
@@ -217,29 +240,26 @@ class ExcelSplitterApp:
         ttk.Button(r3, text="打开输出目录", command=self.open_out_dir).pack(side=tk.LEFT)
 
     def _build_op_area(self):
-        op = ttk.Frame(self.content)
-        op.pack(fill=tk.X, pady=(2, 8))
-        self.status_dot = ttk.Label(op, text="●", style="StatusInfo.TLabel")
+        """底部通栏:状态指示 + 进度条。"""
+        self.status_dot = ttk.Label(self.bottom, text="●", style="StatusInfo.TLabel")
         self.status_dot.pack(side=tk.LEFT, padx=(2, 4))
-        ttk.Label(op, textvariable=self.status_var, style="StatusInfo.TLabel").pack(side=tk.LEFT)
-        self.btn_split = ttk.Button(op, text="开始拆分", style="Accent.TButton",
-                                    command=self.do_split)
-        self.btn_split.pack(side=tk.RIGHT, ipadx=22, ipady=6)
-        self.pb = ttk.Progressbar(self.content, mode="determinate", maximum=100)
-        self.pb.pack(fill=tk.X, pady=(0, 12))
+        ttk.Label(self.bottom, textvariable=self.status_var, style="StatusInfo.TLabel").pack(side=tk.LEFT)
+        self.pb = ttk.Progressbar(self.bottom, mode="determinate", maximum=100)
+        self.pb.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(14, 0))
 
     def _build_log(self):
-        c4 = self._card("4", "运行日志")
+        c4 = self._card("4", "运行日志", parent=self._log_parent)
+        c4.pack(fill=tk.BOTH, expand=True)
         lw = ttk.Frame(c4)
-        lw.pack(fill=tk.X)
-        self.log_tree = ttk.Treeview(lw, columns=("time", "msg"), show="headings", height=5)
+        lw.pack(fill=tk.BOTH, expand=True)
+        self.log_tree = ttk.Treeview(lw, columns=("time", "msg"), show="headings", height=6)
         self.log_tree.heading("time", text="时间")
         self.log_tree.heading("msg", text="消息")
-        self.log_tree.column("time", width=86, anchor=tk.W, stretch=False)
-        self.log_tree.column("msg", width=460)
+        self.log_tree.column("time", width=80, anchor=tk.W, stretch=False)
+        self.log_tree.column("msg", width=280)
         vsb = ttk.Scrollbar(lw, orient=tk.VERTICAL, command=self.log_tree.yview)
         self.log_tree.configure(yscrollcommand=vsb.set)
-        self.log_tree.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.log_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.log_tree.tag_configure("ok", foreground=OK)
         self.log_tree.tag_configure("err", foreground=DANGER)
@@ -469,8 +489,8 @@ def run_gui():
     else:
         root = tk.Tk()
     root.title("Excel 按列拆分工具")
-    root.geometry("824x704+120+60")
-    root.minsize(760, 640)
+    root.geometry("980x680+120+60")
+    root.minsize(860, 600)
     sv_ttk.set_theme("light")
     ExcelSplitterApp(root)
     root.mainloop()
