@@ -43,14 +43,13 @@ jobs:
           gh release download "${{ steps.tag.outputs.tag }}" --dir dist --clobber
           ls -la dist
 
-      - name: Create Gitee release and upload assets
+      - name: 创建 Gitee Release（已存在则复用）
+        id: meta
         uses: actions/github-script@v7
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         with:
           script: |
-            const fs = require('fs');
-            const path = require('path');
             const tagName = '${{ steps.tag.outputs.tag }}';
 
             const giteeOwner = 'wiggins-kong';
@@ -92,36 +91,25 @@ jobs:
               }
               giteeRel = createJson;
             }
-            const giteeReleaseId = giteeRel.id;
-            console.log('Gitee release id:', giteeReleaseId);
+            console.log('Gitee release id:', giteeRel.id);
+            core.setOutput('release_id', String(giteeRel.id));
 
-            // 附件已由 gh CLI 下载到 dist/，这里直接读文件上传 Gitee
-            const distDir = path.join(process.env.GITHUB_WORKSPACE || '.', 'dist');
-            let files = [];
-            try {
-              files = fs.readdirSync(distDir).filter(f => fs.statSync(path.join(distDir, f)).isFile());
-            } catch (e) {
-              console.log('dist 目录读取失败:', e.message);
-            }
-            console.log('待上传附件:', files.join(', ') || '(无)');
-            for (const f of files) {
-              try {
-                const buf = fs.readFileSync(path.join(distDir, f));
-                const form = new FormData();
-                form.append('access_token', GITEE_TOKEN);
-                form.append('attach_files', new Blob([buf]), f);
-                const up = await fetch(
-                  `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases/${giteeReleaseId}/attach_files`, {
-                    method: 'POST',
-                    body: form,
-                  });
-                const upJson = await up.json();
-                if (!up.ok) {
-                  console.log(`附件 ${f} 上传失败: ${JSON.stringify(upJson)}`);
-                } else {
-                  console.log(`附件 ${f} 已上传 (${buf.length} 字节)`);
-                }
-              } catch (err) {
-                console.log(`附件 ${f} 上传异常: ${err.message}`);
-              }
-            }
+      - name: 上传附件到 Gitee Release
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          ID="${{ steps.meta.outputs.release_id }}"
+          echo "Gitee release id: ${ID}"
+          for f in dist/*; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            echo "== 上传 ${name} =="
+            curl -sS --fail-with-body \
+              --connect-timeout 30 --max-time 900 \
+              --retry 3 --retry-delay 5 \
+              -X POST "https://gitee.com/api/v5/repos/wiggins-kong/ExcelSplitter/releases/${ID}/attach_files" \
+              -F "access_token=${GITEE_TOKEN}" \
+              -F "attach_files=@${f}"
+            echo
+            echo "== ${name} 上传完成 =="
+          done
