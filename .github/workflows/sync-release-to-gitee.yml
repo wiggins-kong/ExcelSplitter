@@ -89,14 +89,9 @@ jobs:
             console.log('GitHub assets:', assets.map(a => a.name).join(', ') || '(无)');
             for (const asset of assets) {
               try {
-                const dl = await fetch(
-                  `https://api.github.com/repos/${repo.owner}/${repo.repo}/releases/assets/${asset.id}`, {
-                    headers: {
-                      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-                      Accept: 'application/octet-stream',
-                      'User-Agent': 'excel-splitter-gitee-sync',
-                    },
-                  });
+                // 直接用 GitHub 生成的带签名下载链接（含短期签名、无需认证头）。
+                // 不走 api.github.com 的 302 重定向——fetch 跟随跨域重定向会丢弃 Authorization 头导致 401。
+                const dl = await fetch(asset.browser_download_url);
                 if (!dl.ok) {
                   console.log(`下载 ${asset.name} 失败: ${dl.status}`);
                   continue;
