@@ -73,6 +73,7 @@ jobs:
                     name: rel.name || rel.tag_name,
                     body: rel.body || '',
                     prerelease: rel.prerelease,
+                    target_commitish: rel.target_commitish || 'main',
                   }),
                 });
               const createJson = await createResp.json();
