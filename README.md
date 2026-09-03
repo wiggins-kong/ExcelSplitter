@@ -69,20 +69,26 @@ pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_man
 
 ## 发布新版本（GitHub Actions 自动打包）
 
-仓库已内置 `.github/workflows/build-release.yml`：推送一个 `v*` 格式的 tag 时，GitHub 会在云端 Windows 运行器上自动用 PyInstaller 打包 exe，并创建 Release、把 `ExcelSplitter.exe` 作为下载附件。
+仓库已内置 `.github/workflows/build-release.yml`：推送一个 `v*` 格式的 tag 时，GitHub 会在云端 Windows 运行器上自动用 PyInstaller 打包 exe，并创建 Release、把**带版本号的 exe**（如 `ExcelSplitter-v2.0.0.exe`）作为下载附件。
 
 ```bash
 # 1. 确保所有改动已提交并推送到 GitHub
-git add -A && git commit -m "release: v2.0.0" && git push origin main
+git add -A && git commit -m "release: v2.1.0" && git push origin main
 
 # 2. 打 tag 并推送（push tag 即触发 Actions 自动构建 + 发版）
-git tag v2.0.0
-git push origin v2.0.0
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
-推送 tag 后，到仓库的 **Actions** 页看构建进度；成功后 **Releases** 页会出现 `v2.0.0`，里面带可直接下载的 `ExcelSplitter.exe`。
+推送 tag 后，到仓库的 **Actions** 页看构建进度；成功后 **Releases** 页会出现对应版本，里面带可直接下载的 `ExcelSplitter-<版本号>.exe`。
 
 > 改代码后发新版：本地重新 `git tag v2.1.0`（递增版本号）→ `git push origin v2.1.0` 即可，无需手动上传文件。
+
+## Gitee 镜像（源码自动同步）
+
+GitHub 为主仓库，代码会**自动同步**到 Gitee 镜像（[`gitee.com/wiggins-kong/ExcelSplitter`](https://gitee.com/wiggins-kong/ExcelSplitter)）：你 push 到 GitHub 后，`.github/workflows/sync-to-gitee.yml` 会自动把全部分支和 tags 推送到 Gitee，全程云端、无需任何本地操作。
+
+**Release 附件（exe）不会自动同步**——云端构建机跨境上传大文件不稳定，因此 Gitee 侧附件改为手动：GitHub 发版后，在 Gitee「发行版」页编辑对应版本，把 exe（从 GitHub Releases 页下载，或本地 `dist/` 下现成）作为附件上传即可。
 
 ## 目录结构
 
@@ -91,7 +97,7 @@ excel_splitter.py            # 核心逻辑 + CLI 入口（读取层 / 拆分逻
 excel_splitter_gui_web.py    # GUI（pywebview + WebView2 + 真 Mica + 深浅主题，被 excel_splitter.py 无参数调用）
 webgui/index.html            # GUI 界面（HTML/CSS/JS，Win11 Fluent 设计，双主题 Tokens）
 dpi_manifest.xml             # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
-.github/workflows/           # GitHub Actions 自动打包发布
+.github/workflows/           # GitHub Actions：build-release（发版打包）+ sync-to-gitee（源码同步 Gitee）
 CHANGELOG.md                 # 版本变更记录
 DEVELOPMENT.md               # 开发进度与踩坑记录（换机/新会话接续用）
 design/                      # UI 设计稿（HTML demo，含深色主题初稿）

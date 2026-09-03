@@ -47,6 +47,12 @@
 - 构建命令新增 `--collect-all webview --add-data "webgui;webgui"`
 - 运行时依赖 Windows WebView2 Runtime（Win10/11 系统自带）
 
+### 构建与分发（CI / 双托管）
+
+- **Release 附件文件名带版本号**：构建产物改为 `ExcelSplitter-<tag>.exe`（如 `ExcelSplitter-v2.0.0.exe`）
+- **新增 Gitee 源码镜像**：`.github/workflows/sync-to-gitee.yml` 在 push 时自动把全部分支与 tags 同步到 Gitee（`gitee.com/wiggins-kong/ExcelSplitter`），全程云端、无需本地命令
+- **Gitee Release 附件改为手动同步**：曾尝试云端自动上传（推 tag → Gitee OpenAPI 建 Release → 下载 GitHub 附件上传 Gitee），因构建机跨境（美国 → 境内）上传大文件不稳定而放弃：Node fetch 默认 5 分钟 body 超时，换 curl 重试 3 次后 Gitee 仍报 `file is missing`（服务端未收全文件体）。Gitee 附件改手动：GitHub Releases 下载 exe → Gitee「发行版 · 编辑发布」上传
+
 ## [v1.1.0] - 2026-09-02
 
 ### 界面重构（全新 GUI）
