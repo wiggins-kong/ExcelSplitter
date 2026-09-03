@@ -40,18 +40,16 @@ jobs:
 
             let giteeRel = await getGiteeReleaseByTag(rel.tag_name);
             if (!giteeRel) {
-              const body = {
-                access_token: GITEE_TOKEN,
-                tag_name: rel.tag_name,
-                name: rel.name || rel.tag_name,
-                body: rel.body || '',
-                prerelease: rel.prerelease,
-              };
               const createResp = await fetch(
-                `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases`, {
+                `https://gitee.com/api/v5/repos/${giteeOwner}/${giteeRepo}/releases?access_token=${GITEE_TOKEN}`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify(body),
+                  body: JSON.stringify({
+                    tag_name: rel.tag_name,
+                    name: rel.name || rel.tag_name,
+                    body: rel.body || '',
+                    prerelease: rel.prerelease,
+                  }),
                 });
               const createJson = await createResp.json();
               if (!createResp.ok) {
