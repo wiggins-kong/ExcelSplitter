@@ -7,9 +7,10 @@
 
 ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌面小工具（tkinter GUI + CLI，openpyxl / xlrd 读取，PyInstaller 单文件分发，WPS JS 宏的独立实现）。
 
-## 当前状态（2026-09-03）
+## 当前状态（2026-09-05）
 
-- **版本**：`v2.0.0`（正式定版，2026-09-03）：pywebview GUI 全面重构 + 拖放/选列交互增强 + 深色主题随系统切换；**已推送 GitHub 并发布 Release**（附件 `ExcelSplitter-v2.0.0.exe`），Gitee 源码自动同步已生效，Gitee Release 已建（附件待手动补传）
+- **版本**：`v2.0.1`（2026-09-05）：**全新项目 Logo + 应用图标**。白色 squircle 圆角图标定稿，新增 `assets/icons/`（设计源图 + `ExcelSplitter.ico` + `make_ico.py` 生成脚本），打包命令 / 两个 spec / CI workflow 全部带上 `--icon`。本地已打包验证（`dist/ExcelSplitter.exe` 21.2MB，图标嵌入成功，启动冒烟通过）。源码已推送 GitHub 并发布 Release（附件 `ExcelSplitter-v2.0.1.exe`）
+- **上一版**：`v2.0.0`（2026-09-03）：pywebview GUI 全面重构 + 拖放/选列交互增强 + 深色主题随系统切换；已发布 Release（附件 `ExcelSplitter-v2.0.0.exe`）
 - **代码结构**：`excel_splitter.py`（核心 + CLI，零改动）+ `excel_splitter_gui_web.py`（pywebview 启动器 + JS API 桥）+ `webgui/index.html`（界面）
 - **GUI 特性**：真 Mica（DwmSetWindowAttribute，Win11 22H2+；失败回退 CSS 渐变）、Acrylic 毛玻璃卡片、双栏布局（左配置/右执行与日志）、HTML 表格多选（默认点击多选 / Shift 范围选 / 全选·反选·取消选择）、HTML5 拖放（文件/文件夹真实路径）、预计生成数、目录记忆、后台线程拆分、清除文件、清空日志、**深浅双主题随 Windows 系统切换**
 - **主题机制**：`webgui/index.html` 双套 CSS Tokens（`:root` 浅色 / `html[data-theme="dark"]` 深色，所有组件颜色全走变量）；前端 `matchMedia('(prefers-color-scheme: dark)')` 实时切换 + 后端注册表权威注入（onReady 三参 + `get_theme()` 兜底复查）；`transparent=not dark`——深色纯色底 + CSS 渐变，浅色透明 Mica；`DwmSetWindowAttribute(20, ImmersiveDarkMode)` 切标题栏/边框。深色初版见 `design/dark_theme_demo.html`
@@ -36,6 +37,9 @@ ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌
 9. **深色系统下别用透明 Mica（v2.0.1 深色主题踩穿）**：部分环境深色 Mica 溢出的底色是浅灰白，`transparent=True + 内容透明` 会把内容区整片染白（标题栏深、内容白就是它）。对策：`create_window(transparent=not dark, background_color="#0f1113" if dark else "#e8ecf1")`，深色走 CSS 渐变兜底、浅色走 Mica；`on_loaded` 里 `mica_ok = bool(hwnd) and (not dark) and _set_mica_hwnd(hwnd)`。
 10. **深色主题判定双保险**：前端 `matchMedia('(prefers-color-scheme: dark)')` 在 WebView2 里可能滞后/失准 → `onReady` 第三参由后端读注册表 `AppsUseLightTheme` 权威注入；再加 `Api.get_theme()` 让前端 `applyBackendTheme()` 主动复查（防 onReady 时序不达白屏）。诊断日志写 `%TEMP%\ExcelSplitter\theme.log`（`_theme_log()`）。
 11. **Gitee 双托管**：源码自动同步走 `.github/workflows/sync-to-gitee.yml`（push 触发，`git push gitee --all --tags`，认证 URL `https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git`，Secret `GITEE_TOKEN`，Gitee 私人令牌须勾 projects）。**Release 附件自动同步已放弃**：云端 runner（美国 azure）跨境传 15MB multipart 到 Gitee 多次尝试均失败（Node fetch 默认 body 超时 300s；换 curl `--retry 3` 后 Gitee 仍报 `{"messages":["file is missing"]}`= 服务端没收全文件体），非代码问题；Gitee 附件改手动（发行版→编辑发布→上传）。踩过的 Gitee OpenAPI 坑：**access_token 必须放 query/formData，放 JSON body 返回 401**；**创建 Release 必须显式传 `target_commitish`**。
+
+12. **设计稿的「透明底 PNG」未必有底板**：美图设计室返回的 `icon_transparent.png`（自称圆角图标·透明底）实际只有图形、没有圆角底板，直接转 ico 会丢外框。而 `icon-white-bg.jpg` 是铺满画布的白色 squircle、圆角外被 JPG 压成**黑色**，反而能反解 alpha（非黑区定底板 + 膨胀/腐蚀差集取边界带用亮度做软 alpha + 白区提纯白）。换图前先验像素：`corner(5,5)` 与 `center` 的 alpha/亮度对比一下就知道有没有底板。详见 `assets/icons/make_ico.py`。
+13. **本地打包要带上 `.workbuddy/gui_demo/deps`**：`pywebview` / `Pillow` 装在项目内的 `deps` 目录（系统 Python 3.14 全局只有 openpyxl / xlrd / pyinstaller），打包命令前加 `PYTHONPATH=.workbuddy/gui_demo/deps`，否则 `ModuleNotFoundError: webview`。
 
 ## 关键代码位置
 

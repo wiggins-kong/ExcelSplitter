@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [v2.0.1] - 2026-09-05
+
+### 新增
+
+- **全新项目 Logo 与应用图标**：
+  - 设计方向：钢蓝 / 雾蓝为主色、少量雾紫点缀，低饱和；图形用「一整张表沿列裂开成多张」的切割隐喻，与「按列拆分」的工具定位呼应
+  - 定稿形态：**白色 squircle 圆角图标**（连续曲率圆角，Win11 / macOS 应用图标轮廓），主体居中、留白均匀，无文字
+  - 新增 `assets/icons/`，收录设计源图（2048×2048）：白底版 / 深底版 / 纯图形透明底 / 首轮 4 个候选稿
+  - 新增 `assets/icons/ExcelSplitter.ico`：16/24/32/48/64/128/256 多尺寸，PNG 压缩帧，圆角外真透明（深色任务栏下不露白方块）
+  - 新增 `assets/icons/make_ico.py`：一键从设计源图重新生成 `.ico` 的脚本（需要 Pillow）
+  - README 顶部展示 Logo，新增「图标资源」一节说明文件用途与重新生成方法
+
+### 打包
+
+- 构建命令新增 `--icon assets/icons/ExcelSplitter.ico`，exe / 任务栏 / 窗口图标统一为新版 Logo
+- `ExcelSplitter.spec` / `ExcelSplitterDbg.spec` 的 EXE 段同步写入 `icon=`
+- `.github/workflows/build-release.yml` 云端构建同步带 `--icon`，推 tag 产出的 Release exe 自动带图标
+
+> 说明：ico 由「白色版 JPG 反解 alpha」生成——该源图是铺满画布的白色 squircle，圆角外被 JPG 压成黑色，据此用非黑区定底板、边界过渡带亮度做软 alpha、白区提纯白，得到带真透明的圆角图标。
+
 ## [v2.0.0] - 2026-09-03
 
 ### 重大变更：GUI 全面重构（Win11 Fluent）

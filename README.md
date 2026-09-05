@@ -1,5 +1,9 @@
 # Excel 按列拆分工具（ExcelSplitter）
 
+<p align="center">
+  <img src="assets/icons/icon-white-bg.jpg" width="128" alt="ExcelSplitter 图标" />
+</p>
+
 把一张 Excel 总表，按你**指定的若干列**自动拆分成多个独立的 `.xlsx` 文件。
 
 支持输入 `.xlsx` / `.xlsm` / `.xls`，输出统一为 `.xlsx`。
@@ -55,6 +59,7 @@ ExcelSplitter.exe 文件.xlsx --cols 1,3 --out 输出目录 --header 1
 ```bash
 pip install openpyxl xlrd pyinstaller pywebview
 pyinstaller --onefile --windowed --name ExcelSplitter --noupx --manifest dpi_manifest.xml --clean \
+  --icon assets/icons/ExcelSplitter.ico \
   --hidden-import xlrd --collect-all webview --add-data "webgui;webgui" \
   excel_splitter.py
 ```
@@ -97,6 +102,7 @@ excel_splitter.py            # 核心逻辑 + CLI 入口（读取层 / 拆分逻
 excel_splitter_gui_web.py    # GUI（pywebview + WebView2 + 真 Mica + 深浅主题，被 excel_splitter.py 无参数调用）
 webgui/index.html            # GUI 界面（HTML/CSS/JS，Win11 Fluent 设计，双主题 Tokens）
 dpi_manifest.xml             # 高 DPI 感知清单（PerMonitorV2），打包时嵌入 exe
+assets/icons/                # 项目 Logo 与多尺寸 .ico（图标源文件 + make_ico.py 生成脚本）
 .github/workflows/           # GitHub Actions：build-release（发版打包）+ sync-to-gitee（源码同步 Gitee）
 CHANGELOG.md                 # 版本变更记录
 DEVELOPMENT.md               # 开发进度与踩坑记录（换机/新会话接续用）
@@ -104,6 +110,13 @@ design/                      # UI 设计稿（HTML demo，含深色主题初稿�
 .gitignore
 README.md
 ```
+
+## 图标资源
+
+- `assets/icons/ExcelSplitter.ico`：打包用的多尺寸图标（16/24/32/48/64/128/256，含 PNG 压缩帧，圆角外透明）。
+- `assets/icons/make_ico.py`：从设计源图重新生成 `.ico` 的脚本（需要 Pillow）：
+  `python assets/icons/make_ico.py`
+- 其余 `icon-*.jpg/png` 为设计源图（白底 / 深底 / 纯图形 / 透明底，2048×2048），`logo-candidate-*.jpg` 为首轮候选稿。
 
 ## 与原 WPS 宏的关系
 
