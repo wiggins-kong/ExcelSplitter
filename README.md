@@ -93,7 +93,13 @@ git push origin v2.1.0
 
 GitHub 为主仓库，代码会**自动同步**到 Gitee 镜像（[`gitee.com/wiggins-kong/ExcelSplitter`](https://gitee.com/wiggins-kong/ExcelSplitter)）：你 push 到 GitHub 后，`.github/workflows/sync-to-gitee.yml` 会自动把全部分支和 tags 推送到 Gitee，全程云端、无需任何本地操作。
 
-**Release 附件（exe）不会自动同步**——云端构建机跨境上传大文件不稳定，因此 Gitee 侧附件改为手动：GitHub 发版后，在 Gitee「发行版」页编辑对应版本，把 exe（从 GitHub Releases 页下载，或本地 `dist/` 下现成）作为附件上传即可。
+**Release 附件（exe）不会云端自动同步**——云端构建机跨境上传大文件到 Gitee 稳定失败，因此用**本地脚本镜像**：GitHub 发版后在本机跑一条命令（token 放环境变量 `GITEE_TOKEN`，见 `DEVELOPMENT.md` 坑 11）：
+
+```bash
+python scripts/publish_gitee_release.py v2.1.0
+```
+
+脚本会自动复制 GitHub Release 的标题和说明、在 Gitee 建同名 Release 并直连上传 exe（省略 exe 参数时优先取 `dist/` 下现成文件，否则从 GitHub Release 下载）。
 
 ## 目录结构
 

@@ -37,7 +37,7 @@ ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌
    - 前端加超时自愈：拖放 1.2s 无后端反馈 → 文件区自动 base64 载入（`Api.load_blob`）、文件夹区提示；后端命中拖放区后须先 `window.flagDrop()` 防重复提示
 9. **深色系统下别用透明 Mica（v2.0.1 深色主题踩穿）**：部分环境深色 Mica 溢出的底色是浅灰白，`transparent=True + 内容透明` 会把内容区整片染白（标题栏深、内容白就是它）。对策：`create_window(transparent=not dark, background_color="#0f1113" if dark else "#e8ecf1")`，深色走 CSS 渐变兜底、浅色走 Mica；`on_loaded` 里 `mica_ok = bool(hwnd) and (not dark) and _set_mica_hwnd(hwnd)`。
 10. **深色主题判定双保险**：前端 `matchMedia('(prefers-color-scheme: dark)')` 在 WebView2 里可能滞后/失准 → `onReady` 第三参由后端读注册表 `AppsUseLightTheme` 权威注入；再加 `Api.get_theme()` 让前端 `applyBackendTheme()` 主动复查（防 onReady 时序不达白屏）。诊断日志写 `%TEMP%\ExcelSplitter\theme.log`（`_theme_log()`）。
-11. **Gitee 双托管**：源码自动同步走 `.github/workflows/sync-to-gitee.yml`（push 触发，`git push gitee --all --tags`，认证 URL `https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git`，Secret `GITEE_TOKEN`，Gitee 私人令牌须勾 projects）。**Release 附件自动同步已放弃**：云端 runner（美国 azure）跨境传 15MB multipart 到 Gitee 多次尝试均失败（Node fetch 默认 body 超时 300s；换 curl `--retry 3` 后 Gitee 仍报 `{"messages":["file is missing"]}`= 服务端没收全文件体），非代码问题；Gitee 附件改手动（发行版→编辑发布→上传）。踩过的 Gitee OpenAPI 坑：**access_token 必须放 query/formData，放 JSON body 返回 401**；**创建 Release 必须显式传 `target_commitish`**。
+11. **Gitee 双托管**：源码自动同步走 `.github/workflows/sync-to-gitee.yml`（push 触发，`git push gitee --all --tags`，认证 URL `https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git`，Secret `GITEE_TOKEN`，Gitee 私人令牌须勾 projects）。**Release 附件云端自动同步已放弃**：云端 runner（美国 azure）跨境传 15MB multipart 到 Gitee 多次尝试均失败（Node fetch 默认 body 超时 300s；换 curl `--retry 3` 后 Gitee 仍报 `{"messages":["file is missing"]}`= 服务端没收全文件体），非代码问题。**现行方案（v2.1.0 起）：本地一键脚本 `scripts/publish_gitee_release.py`**——发版后在本机跑 `python scripts/publish_gitee_release.py v2.1.0 [exe路径]`，自动复制 GitHub Release 描述 + 建 Gitee Release + 直连上传 exe（本地网络无跨境问题）；需环境变量 `GITEE_TOKEN`；exe 省略时先找 `dist/` 再从 GitHub Release 下载（用 `GITHUB_TOKEN` 或 git 凭证管理器）。踩过的 Gitee OpenAPI 坑：**access_token 必须放 query/formData，放 JSON body 返回 401**；**创建 Release 必须显式传 `target_commitish`**；**Gitee API 无删除附件接口**，同名附件已存在时脚本会提示去网页手动删旧的重跑。
 
 12. **设计稿的「透明底 PNG」未必有底板**：美图设计室返回的 `icon_transparent.png`（自称圆角图标·透明底）实际只有图形、没有圆角底板，直接转 ico 会丢外框。而 `icon-white-bg.jpg` 是铺满画布的白色 squircle、圆角外被 JPG 压成**黑色**，反而能反解 alpha（非黑区定底板 + 膨胀/腐蚀差集取边界带用亮度做软 alpha + 白区提纯白）。换图前先验像素：`corner(5,5)` 与 `center` 的 alpha/亮度对比一下就知道有没有底板。详见 `assets/icons/make_ico.py`。
 13. **本地打包要带上 `.workbuddy/gui_demo/deps`**：`pywebview` / `Pillow` 装在项目内的 `deps` 目录（系统 Python 3.14 全局只有 openpyxl / xlrd / pyinstaller），打包命令前加 `PYTHONPATH=.workbuddy/gui_demo/deps`，否则 `ModuleNotFoundError: webview`。（注：本机后来已全局装齐 pywebview，此坑仅旧机器适用）
@@ -75,14 +75,17 @@ dist\ExcelSplitter.exe "测试.xls" --cols 1 --out 自检目录
 git add -A && git commit -m "feat: ..."
 git tag vX.Y.Z
 git push origin main && git push origin vX.Y.Z
+
+# ⑤ Gitee Release 镜像（等 Actions 构建完成后本地跑；需环境变量 GITEE_TOKEN）
+python scripts/publish_gitee_release.py vX.Y.Z
 ```
 
 ## 发布流程提醒
 
-- 推送 `v*` tag → Actions 自动构建并把 `ExcelSplitter-<tag>.exe` 挂到 GitHub Release；源码随即自动同步到 Gitee（sync-to-gitee）
-- **Gitee Release 附件需手动上传**：GitHub Releases 页下载 exe → gitee.com/wiggins-kong/ExcelSplitter →「发行版」→「编辑发布」→ 上传附件 → 保存
+- 推送 `v*` tag → Actions 自动构建并把 `ExcelSplitter-<tag>.exe` 挂到 GitHub Release（Release notes 自动取自 CHANGELOG 对应版本段）；源码随即自动同步到 Gitee（sync-to-gitee）
+- **Gitee Release 用本地脚本镜像**：`python scripts/publish_gitee_release.py vX.Y.Z`（详建坑 11）；云端自动传附件已验证不可行，别再试
 - 发版前需同步：`CHANGELOG.md` 补发布日期、本文件「当前状态」更新
-- `v2.0.0`：已发布（GitHub Release + Gitee Release 均已建，Gitee 附件待手动补传 exe）
+- `v2.1.0`：GitHub Release 已发布（notes 自动提取生效）；Gitee Release 待用脚本补传 exe
 
 ## 项目约定 / 用户偏好
 
