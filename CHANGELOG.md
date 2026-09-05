@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [v2.1.0] - 2026-09-06
+
+### 修复
+
+- **兼容扩展名造假的 ".xls"**：不少系统导出的 ".xls" 文件实际是 xlsx 格式（文件头为 ZIP 容器 `PK\x03\x04`），原按扩展名分派给 xlrd 会报「Excel xlsx file; not supported」。现改为嗅探文件头自动分派读取器（`PK\x03\x04` → openpyxl，`\xd0\xcf\x11\xe0` OLE2 → xlrd，嗅探不出回退扩展名），openpyxl 加载改走字节流绕过其按扩展名的格式校验；工作表列表、读取、拆分全链路（GUI 与 CLI）自动受益
+- **选列表格表头改不透明**：表头原为半透明背景，滚动列列表时行文字会与表头文字重叠。深浅两套主题分别改用不透明实色 `#222426` / `#f3f6fa`，观感基本不变
+
 ## [v2.0.1] - 2026-09-05
 
 ### 新增

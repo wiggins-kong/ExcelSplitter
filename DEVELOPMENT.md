@@ -7,10 +7,11 @@
 
 ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌面小工具（tkinter GUI + CLI，openpyxl / xlrd 读取，PyInstaller 单文件分发，WPS JS 宏的独立实现）。
 
-## 当前状态（2026-09-05）
+## 当前状态（2026-09-06）
 
-- **版本**：`v2.0.1`（2026-09-05）：**全新项目 Logo + 应用图标**。白色 squircle 圆角图标定稿，新增 `assets/icons/`（设计源图 + `ExcelSplitter.ico` + `make_ico.py` 生成脚本），打包命令 / 两个 spec / CI workflow 全部带上 `--icon`。本地已打包验证（`dist/ExcelSplitter.exe` 21.2MB，图标嵌入成功，启动冒烟通过）。源码已推送 GitHub 并发布 Release（附件 `ExcelSplitter-v2.0.1.exe`）
-- **上一版**：`v2.0.0`（2026-09-03）：pywebview GUI 全面重构 + 拖放/选列交互增强 + 深色主题随系统切换；已发布 Release（附件 `ExcelSplitter-v2.0.0.exe`）
+- **版本**：`v2.1.0`（2026-09-06）：**兼容扩展名造假的 ".xls" + 表头不透明**。① 读取分派从「按扩展名」改为「嗅探文件头」（`excel_splitter.py: _sniff_format()`）：`PK\x03\x04`→xlsx 走 openpyxl（扩展名不符时 `_load_xlsx()` 走 BytesIO 字节流绕过 openpyxl 扩展名校验）、`\xd0\xcf\x11\xe0`→旧版 xls 走 xlrd，修复伪装 .xls 报「Excel xlsx file; not supported」；② 选列表格表头 `--thead-bg` 深浅两套均改不透明实色（`#222426` / `#f3f6fa`），修复滚动时行文字与表头重叠。已验证：伪装 .xls CLI 拆分 11 文件 0 失败、GUI 冒烟通过；本地已重打包 `dist/ExcelSplitter.exe`。**待发布**：推 tag 触发 Actions Release
+- **上一版**：`v2.0.1`（2026-09-05）：**全新项目 Logo + 应用图标**。白色 squircle 圆角图标定稿，新增 `assets/icons/`（设计源图 + `ExcelSplitter.ico` + `make_ico.py` 生成脚本），打包命令 / 两个 spec / CI workflow 全部带上 `--icon`。已发布 Release（附件 `ExcelSplitter-v2.0.1.exe`）
+- **上上版**：`v2.0.0`（2026-09-03）：pywebview GUI 全面重构 + 拖放/选列交互增强 + 深色主题随系统切换；已发布 Release（附件 `ExcelSplitter-v2.0.0.exe`）
 - **代码结构**：`excel_splitter.py`（核心 + CLI，零改动）+ `excel_splitter_gui_web.py`（pywebview 启动器 + JS API 桥）+ `webgui/index.html`（界面）
 - **GUI 特性**：真 Mica（DwmSetWindowAttribute，Win11 22H2+；失败回退 CSS 渐变）、Acrylic 毛玻璃卡片、双栏布局（左配置/右执行与日志）、HTML 表格多选（默认点击多选 / Shift 范围选 / 全选·反选·取消选择）、HTML5 拖放（文件/文件夹真实路径）、预计生成数、目录记忆、后台线程拆分、清除文件、清空日志、**深浅双主题随 Windows 系统切换**
 - **主题机制**：`webgui/index.html` 双套 CSS Tokens（`:root` 浅色 / `html[data-theme="dark"]` 深色，所有组件颜色全走变量）；前端 `matchMedia('(prefers-color-scheme: dark)')` 实时切换 + 后端注册表权威注入（onReady 三参 + `get_theme()` 兜底复查）；`transparent=not dark`——深色纯色底 + CSS 渐变，浅色透明 Mica；`DwmSetWindowAttribute(20, ImmersiveDarkMode)` 切标题栏/边框。深色初版见 `design/dark_theme_demo.html`
@@ -39,7 +40,8 @@ ExcelSplitter：按指定列把 Excel 总表拆分成多个独立 `.xlsx` 的桌
 11. **Gitee 双托管**：源码自动同步走 `.github/workflows/sync-to-gitee.yml`（push 触发，`git push gitee --all --tags`，认证 URL `https://oauth2:${GITEE_TOKEN}@gitee.com/wiggins-kong/ExcelSplitter.git`，Secret `GITEE_TOKEN`，Gitee 私人令牌须勾 projects）。**Release 附件自动同步已放弃**：云端 runner（美国 azure）跨境传 15MB multipart 到 Gitee 多次尝试均失败（Node fetch 默认 body 超时 300s；换 curl `--retry 3` 后 Gitee 仍报 `{"messages":["file is missing"]}`= 服务端没收全文件体），非代码问题；Gitee 附件改手动（发行版→编辑发布→上传）。踩过的 Gitee OpenAPI 坑：**access_token 必须放 query/formData，放 JSON body 返回 401**；**创建 Release 必须显式传 `target_commitish`**。
 
 12. **设计稿的「透明底 PNG」未必有底板**：美图设计室返回的 `icon_transparent.png`（自称圆角图标·透明底）实际只有图形、没有圆角底板，直接转 ico 会丢外框。而 `icon-white-bg.jpg` 是铺满画布的白色 squircle、圆角外被 JPG 压成**黑色**，反而能反解 alpha（非黑区定底板 + 膨胀/腐蚀差集取边界带用亮度做软 alpha + 白区提纯白）。换图前先验像素：`corner(5,5)` 与 `center` 的 alpha/亮度对比一下就知道有没有底板。详见 `assets/icons/make_ico.py`。
-13. **本地打包要带上 `.workbuddy/gui_demo/deps`**：`pywebview` / `Pillow` 装在项目内的 `deps` 目录（系统 Python 3.14 全局只有 openpyxl / xlrd / pyinstaller），打包命令前加 `PYTHONPATH=.workbuddy/gui_demo/deps`，否则 `ModuleNotFoundError: webview`。
+13. **本地打包要带上 `.workbuddy/gui_demo/deps`**：`pywebview` / `Pillow` 装在项目内的 `deps` 目录（系统 Python 3.14 全局只有 openpyxl / xlrd / pyinstaller），打包命令前加 `PYTHONPATH=.workbuddy/gui_demo/deps`，否则 `ModuleNotFoundError: webview`。（注：本机后来已全局装齐 pywebview，此坑仅旧机器适用）
+14. **".xls" 扩展名不可信，读取分派要嗅探文件头（v2.0.2 踩穿）**：不少系统导出的 ".xls" 实为 xlsx（ZIP 容器，头 `PK\x03\x04`），按扩展名丢给 xlrd 会报「Excel xlsx file; not supported」。对策：`excel_splitter.py: _sniff_format()` 按头 8 字节分派（`PK\x03\x04`→openpyxl、`\xd0\xcf\x11\xe0`→xlrd，嗅探不出回退扩展名）；且 openpyxl 会按扩展名校验格式，扩展名不符时必须走 `_load_xlsx()` 字节流（BytesIO）加载。`list_sheets` / `read_sheet_rows` 已全部切换，GUI 与 CLI 自动受益。另：`--windowed` exe 里 CLI 抛未捕获异常会弹错误对话框挂住进程（不会自己退出），冒烟脚本要防卡死。
 
 ## 关键代码位置
 

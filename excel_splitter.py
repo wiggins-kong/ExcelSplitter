@@ -13,6 +13,7 @@ ExcelSplitter - 按选中列拆分 Excel 工作表为多个文件
   excel_splitter.py        核心逻辑 + CLI 入口（本文件，无 GUI 依赖）
   excel_splitter_gui.py    sv_ttk 图形界面（GUI 模式入口，import 本文件）
 """
+import io
 import os
 import re
 import sys
@@ -36,6 +37,34 @@ def _is_xls(path):
     return os.path.splitext(path)[1].lower() == ".xls"
 
 
+def _sniff_format(path):
+    """按文件头嗅探真实格式，返回 'xls' 或 'xlsx'。
+
+    扩展名不可信：不少系统导出的 ".xls" 实际是 xlsx（ZIP 容器，头为
+    PK\x03\x04），真旧版 .xls 是 OLE2 复合文档（头为 \xd0\xcf\x11\xe0）。
+    嗅探不出来时回退扩展名。
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(8)
+    except OSError:
+        head = b""
+    if head.startswith(b"PK\x03\x04"):
+        return "xlsx"
+    if head.startswith(b"\xd0\xcf\x11\xe0"):
+        return "xls"
+    return "xls" if _is_xls(path) else "xlsx"
+
+
+def _load_xlsx(path, **kw):
+    """openpyxl 加载；扩展名与内容不符（如 .xls 实为 xlsx）时走字节流，
+    绕过 openpyxl 按扩展名的格式校验。"""
+    if os.path.splitext(path)[1].lower() in (".xlsx", ".xlsm"):
+        return openpyxl.load_workbook(path, **kw)
+    with open(path, "rb") as f:
+        return openpyxl.load_workbook(io.BytesIO(f.read()), **kw)
+
+
 def _require_xlrd():
     if not _HAS_XLRD:
         raise ValueError("读取 .xls 文件需要 xlrd 库，请先安装：pip install xlrd")
@@ -52,15 +81,15 @@ def _xls_value(sh, r, c):
 
 
 def list_sheets(path):
-    """返回工作簿内所有工作表名（按扩展名自动分派 .xls / .xlsx）。"""
-    if _is_xls(path):
+    """返回工作簿内所有工作表名（按文件头嗅探格式自动分派）。"""
+    if _sniff_format(path) == "xls":
         _require_xlrd()
         wb = xlrd.open_workbook(path)
         try:
             return wb.sheet_names()
         finally:
             wb.release_resources()
-    wb = openpyxl.load_workbook(path)
+    wb = _load_xlsx(path)
     try:
         return wb.sheetnames
     finally:
@@ -68,13 +97,13 @@ def list_sheets(path):
 
 
 def read_sheet_rows(path, sheet=None):
-    """读取指定工作表为 rows（list[list]，含表头行）。按扩展名自动分派。
+    """读取指定工作表为 rows（list[list]，含表头行）。按文件头嗅探格式自动分派。
 
     注意：xlsx 不能用 read_only=True！部分工具导出的 xlsx 内部 <dimension>
     声明错误（如只写 A1，实际数据到 AK2629），read_only 模式信任该声明会把
     工作表截断成 1x1，导致只读到第一个表头单元格。常规模式不受影响。
     """
-    if _is_xls(path):
+    if _sniff_format(path) == "xls":
         _require_xlrd()
         wb = xlrd.open_workbook(path)
         try:
@@ -83,7 +112,7 @@ def read_sheet_rows(path, sheet=None):
                     for r in range(sh.nrows)]
         finally:
             wb.release_resources()
-    wb = openpyxl.load_workbook(path, data_only=True)
+    wb = _load_xlsx(path, data_only=True)
     try:
         ws = wb[sheet] if sheet else wb.active
         return [list(row) for row in ws.iter_rows(values_only=True)]
